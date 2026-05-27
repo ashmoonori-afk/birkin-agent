@@ -15,10 +15,10 @@ runtime uses only the Python standard library.
 
 ```sh
 cd birkin-agent
-./scripts/birkin doctor
-./scripts/birkin skills list
-./scripts/birkin agents run planner --task "Plan the next release"
-./scripts/birkin web --port 8765
+./scripts/birkin-codex doctor
+./scripts/birkin-codex skills list
+./scripts/birkin-codex agents run planner --task "Plan the next release"
+./scripts/birkin-codex web --port 8765
 ```
 
 Open `http://127.0.0.1:8765`.
@@ -30,9 +30,9 @@ cd birkin-agent
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -e .
-birkin doctor
-birkin skills validate
-birkin web --port 8765
+birkin-codex doctor
+birkin-codex skills validate
+birkin-codex web --port 8765
 ```
 
 ## Local CLI Runner
@@ -41,15 +41,15 @@ Birkin does not call a model by default. To connect a local CLI, choose or add a
 model profile:
 
 ```sh
-birkin model list
-birkin model use codex-local
-birkin agents run builder --model codex-local --execute --task "Implement the change"
+birkin-codex model list
+birkin-codex model use codex-local
+birkin-codex agents run builder --model codex-local --execute --task "Implement the change"
 ```
 
 To add a custom local CLI profile:
 
 ```sh
-birkin model add my-local \
+birkin-codex model add my-local \
   --provider local-cli \
   --model local-model \
   --runner local-cli \
@@ -57,3 +57,25 @@ birkin model add my-local \
 ```
 
 Keep the command as an argv array. Do not put shell pipelines or secrets in this config.
+
+## Auth, API, and Gateway
+
+Local CLI auth delegates login state to the installed tool:
+
+```sh
+birkin-codex auth list
+birkin-codex auth login codex-cli
+```
+
+API profiles can call OpenAI-compatible endpoints:
+
+```sh
+export OPENAI_API_KEY=...
+birkin-codex agents run builder --model api-openai --execute --task "Draft the change"
+```
+
+Run the local machine-facing gateway:
+
+```sh
+birkin-codex gateway run --port 8770
+```

@@ -18,10 +18,16 @@ compatibility with their private internals.
   allowlists and writes auditable run records.
 - `src/birkin_agent/models.py`: resolves Hermes-style model profiles, local CLI
   command templates, defaults, validation, and per-run overrides.
+- `src/birkin_agent/auth.py`: manages local CLI OAuth/auth profiles by delegating
+  login, logout, and status commands to external CLIs such as `codex`.
+- `src/birkin_agent/api.py`: calls OpenAI-compatible chat completions endpoints
+  through configured API profiles.
+- `src/birkin_agent/gateway.py`: serves a local machine-facing HTTP gateway for
+  health, status, model, auth, API, and run operations.
 - `src/birkin_agent/improve.py`: records lessons, gathers signals, creates pending
   skill improvement proposals, and applies approved patches.
 - `src/birkin_agent/dashboard.py`: turns run records, usage, warnings, agents, and
-  skills into dashboard API data.
+  skills into dashboard API data, including model, auth, API, and gateway status.
 - `src/birkin_agent/web.py`: serves a local operator dashboard with running jobs,
   result summaries, status, usage, warnings, skills, agents, and job generation.
 - `skills/`: bundled starter skill set covering core, tools, development, creative,
@@ -46,8 +52,12 @@ The first skill with a given `name` wins. Later duplicates are reported as shado
 
 - Default runner is `dry-run`.
 - Default model profile is `packet`, which never calls an external model.
-- Real CLI execution requires an explicit model profile command in `birkin.json`
+- Real CLI or API execution requires an explicit model profile in `birkin.json`
   and `--execute` on the run command.
+- Local CLI OAuth profiles call the external tool's own login store and do not write
+  tokens to Birkin config.
+- The gateway binds to localhost by default. If `BIRKIN_GATEWAY_TOKEN` is set, or
+  `gateway.requireToken` is true, it requires a bearer token or `x-birkin-token`.
 - Skills are procedural memory, not executable trust.
 - Web UI escapes workspace-provided table values before rendering.
 - Runtime artifacts live under ignored workspace directories.

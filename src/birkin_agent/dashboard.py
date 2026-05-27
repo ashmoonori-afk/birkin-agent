@@ -5,6 +5,9 @@ from pathlib import Path
 from typing import Any
 
 from .agents import agent_rows, validate_agents
+from .api import api_rows, validate_api
+from .auth import auth_rows, validate_auth
+from .gateway import gateway_info, validate_gateway
 from .improve import collect_signals
 from .models import model_rows, validate_models
 from .skills import discover_skills, skill_rows, validate_skills
@@ -111,6 +114,9 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
     model_errors, model_warnings = validate_models(workspace)
     skill_errors, skill_warnings = validate_skills(workspace)
     agent_errors, agent_warnings = validate_agents(workspace)
+    auth_errors, auth_warnings = validate_auth(workspace)
+    api_errors, api_warnings = validate_api(workspace)
+    gateway_errors, gateway_warnings = validate_gateway(workspace)
     warnings = warning_rows(
         doctor_errors,
         doctor_warnings,
@@ -121,6 +127,16 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
         agent_errors,
         agent_warnings,
     )
+    for source, severity, values in [
+        ("auth", "critical", auth_errors),
+        ("auth", "warning", auth_warnings),
+        ("api", "critical", api_errors),
+        ("api", "warning", api_warnings),
+        ("gateway", "critical", gateway_errors),
+        ("gateway", "warning", gateway_warnings),
+    ]:
+        for value in values:
+            warnings.append({"severity": severity, "source": source, "message": value})
     for skill in discover_skills(workspace):
         if not skill.eligible and skill.reason:
             warnings.append(
@@ -136,6 +152,8 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
     skills = skill_rows(workspace)
     agents = agent_rows(workspace)
     models = model_rows(workspace)
+    auth = auth_rows(workspace)
+    api = api_rows(workspace)
     signals = collect_signals(workspace)
     return {
         "root": str(workspace.root),
@@ -147,6 +165,8 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
             "skillsTotal": len(skills),
             "agentsTotal": len(agents),
             "modelsTotal": len(models),
+            "authProfiles": len(auth),
+            "apiProfiles": len(api),
             "warningCount": len(warnings),
             "signals": len(signals),
         },
@@ -156,6 +176,9 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
         "skills": skills,
         "agents": agents,
         "models": models,
+        "auth": auth,
+        "api": api,
+        "gateway": gateway_info(workspace),
         "signals": signals,
         "summary": workspace_summary(jobs, warnings, usage),
     }

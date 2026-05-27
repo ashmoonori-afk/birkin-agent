@@ -15,6 +15,7 @@ class ModelProfile:
     model: str
     runner: str
     command: list[str]
+    api_profile: str
     timeout_seconds: int | None
     description: str
     is_default: bool = False
@@ -48,6 +49,7 @@ def model_profile_map(workspace: Workspace) -> dict[str, ModelProfile]:
             model=str(raw.get("model") or profile_id),
             runner=str(raw.get("runner") or ""),
             command=[str(part) for part in command],
+            api_profile=str(raw.get("apiProfile") or ""),
             timeout_seconds=int(timeout) if timeout else None,
             description=str(raw.get("description") or ""),
             is_default=profile_id == default_id,
@@ -83,6 +85,7 @@ def resolve_model_profile(
                 model=selected or "packet-only",
                 runner="dry-run",
                 command=[],
+                api_profile="",
                 timeout_seconds=None,
                 description="Packet-only model profile.",
                 is_default=True,
@@ -93,6 +96,7 @@ def resolve_model_profile(
             model=selected,
             runner=base.runner,
             command=list(base.command),
+            api_profile=base.api_profile,
             timeout_seconds=base.timeout_seconds,
             description=f"Ad hoc model override based on {base.id}.",
             is_default=False,
@@ -104,6 +108,7 @@ def resolve_model_profile(
             model=profile.model,
             runner=profile.runner,
             command=list(profile.command),
+            api_profile=profile.api_profile,
             timeout_seconds=profile.timeout_seconds,
             description=profile.description,
             is_default=profile.is_default,
@@ -136,6 +141,7 @@ def model_rows(workspace: Workspace) -> list[dict[str, str]]:
                 "provider": profile.provider,
                 "model": profile.model,
                 "runner": profile.runner,
+                "apiProfile": profile.api_profile,
                 "command": " ".join(profile.command) if profile.command else "",
                 "description": profile.description,
             }
@@ -161,6 +167,13 @@ def validate_models(workspace: Workspace) -> tuple[list[str], list[str]]:
             errors.append(f"{profile.id}: missing model")
         if profile.runner and profile.runner not in runner_config:
             errors.append(f"{profile.id}: runner not found: {profile.runner}")
+        if profile.runner == "api":
+            api_profiles = workspace.config.get("api", {}).get("profiles", {})
+            api_profile = profile.api_profile or workspace.config.get("runners", {}).get("api", {}).get("profile")
+            if not api_profile:
+                errors.append(f"{profile.id}: api model profile requires apiProfile or runners.api.profile")
+            elif isinstance(api_profiles, dict) and api_profile not in api_profiles:
+                errors.append(f"{profile.id}: api profile not found: {api_profile}")
         if profile.command and not all(isinstance(part, str) and part for part in profile.command):
             errors.append(f"{profile.id}: command must be a non-empty argv string list")
         if profile.is_default and profile.runner == "local-cli" and not profile.command:
@@ -183,6 +196,7 @@ def add_model_profile(
     command_json: str,
     timeout_seconds: int | None,
     description: str,
+    api_profile: str = "",
 ) -> None:
     if not valid_model_id(profile_id):
         raise ValueError("model profile id may contain letters, numbers, _, -, ., :, and /")
@@ -201,6 +215,7 @@ def add_model_profile(
         "model": model,
         "runner": runner,
         "command": command,
+        "apiProfile": api_profile,
         "timeoutSeconds": timeout_seconds,
         "description": description,
     }

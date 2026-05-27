@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+ROOT_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+PYTHON_BIN=${PYTHON:-python3}
+
+if [ -n "${PYTHONPATH:-}" ]; then
+  export PYTHONPATH="$ROOT_DIR/src:$PYTHONPATH"
+else
+  export PYTHONPATH="$ROOT_DIR/src"
+fi
+
+exec "$PYTHON_BIN" -m birkin_agent "$@"

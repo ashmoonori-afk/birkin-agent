@@ -9,6 +9,7 @@ authors = [{ name = "Birkin Codex Workspace" }]
 dependencies = []
 
 [project.scripts]
+birkin-codex = "birkin_agent.cli:main"
 birkin = "birkin_agent.cli:main"
 
 [tool.setuptools.packages.find]

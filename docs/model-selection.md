@@ -8,13 +8,14 @@ profile is `packet`, which never calls an external model.
 ## Commands
 
 ```sh
-birkin model list
-birkin model use packet
-birkin model use codex-local
-birkin agents run builder --model codex-local --execute --task "Implement the change"
+birkin-codex model list
+birkin-codex model use packet
+birkin-codex model use codex-local
+birkin-codex model use api-openai
+birkin-codex agents run builder --model codex-local --execute --task "Implement the change"
 ```
 
-`birkin models` is an alias for `birkin model`.
+`birkin-codex models` is an alias for `birkin-codex model`.
 
 ## Local CLI Profiles
 
@@ -42,15 +43,51 @@ at run time.
 Add a custom profile without editing JSON by hand:
 
 ```sh
-birkin model add my-local \
+birkin-codex model add my-local \
   --provider local-cli \
   --model local-model \
   --runner local-cli \
   --command-json '["my-model-cli","--model","{model}","-"]'
 ```
 
+## API Profiles
+
+API model profiles use the `api` runner and point at an API profile with `apiProfile`:
+
+```json
+{
+  "models": {
+    "profiles": {
+      "api-openai": {
+        "provider": "openai-compatible",
+        "model": "gpt-5.5",
+        "runner": "api",
+        "apiProfile": "openai-compatible",
+        "command": [],
+        "timeoutSeconds": 1800
+      }
+    }
+  }
+}
+```
+
+Add a local OpenAI-compatible endpoint and model profile:
+
+```sh
+birkin-codex api add local-dev \
+  --base-url http://127.0.0.1:1234/v1 \
+  --chat-path /chat/completions
+
+birkin-codex model add local-api \
+  --provider local-dev \
+  --model local-model \
+  --runner api \
+  --api-profile local-dev
+```
+
 ## Safety
 
-- Model profiles do not execute unless `birkin agents run --execute` is used.
+- Model profiles do not execute unless `birkin-codex agents run --execute` is used.
 - Commands are argv arrays, not shell strings.
 - Secrets should stay in the local CLI's own auth store or environment, not in `birkin.json`.
+- API keys are read from environment variables such as `OPENAI_API_KEY`.

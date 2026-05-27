@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from http.server import ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
 import shutil
@@ -11,7 +11,10 @@ import unittest
 from urllib.request import Request, urlopen
 
 from birkin_agent.agents import build_packet, run_agent, validate_agents
+from birkin_agent.api import api_rows, validate_api
+from birkin_agent.auth import auth_rows, run_auth_command, validate_auth
 from birkin_agent.dashboard import dashboard_data
+from birkin_agent.gateway import GatewayHandler
 from birkin_agent.improve import append_lesson, apply_improvement, propose_improvement
 from birkin_agent.models import render_model_command, resolve_model_profile, use_model_profile, validate_models
 from birkin_agent.skills import create_skill, discover_skills, validate_skills
@@ -44,6 +47,8 @@ class WorkspaceTest(unittest.TestCase):
         self.assertGreaterEqual(len(hermes_names), 90)
         self.assertIn("hermes-test-driven-development", hermes_names)
         self.assertIn("hermes-ascii-art", hermes_names)
+        self.assertTrue((workspace.root / "scripts" / "birkin-codex").exists())
+        self.assertTrue((workspace.root / "scripts" / "birkin-codex.ps1").exists())
         self.assertTrue((workspace.root / "scripts" / "birkin").exists())
         self.assertTrue((workspace.root / "scripts" / "birkin.ps1").exists())
 
@@ -64,6 +69,7 @@ class WorkspaceTest(unittest.TestCase):
         self.assertEqual(warnings, [])
         profile = resolve_model_profile(workspace, "codex-local")
         self.assertEqual(profile.runner, "local-cli")
+        self.assertEqual(resolve_model_profile(workspace, "api-openai").api_profile, "openai-compatible")
         self.assertEqual(
             render_model_command(profile.command, profile),
             ["codex", "exec", "--model", "gpt-5.5", "-"],
@@ -101,6 +107,90 @@ class WorkspaceTest(unittest.TestCase):
         self.assertEqual(payload["status"], "ok")
         self.assertEqual(payload["model"]["id"], "test-local")
 
+    def test_auth_profiles_delegate_to_local_cli_commands(self) -> None:
+        workspace = self.make_workspace()
+        workspace.config["auth"]["profiles"]["unit-auth"] = {
+            "type": "local-cli-oauth",
+            "provider": "unit-cli",
+            "binary": sys.executable,
+            "loginCommand": [sys.executable, "-c", "print('login-ok')"],
+            "logoutCommand": [sys.executable, "-c", "print('logout-ok')"],
+            "statusCommand": [sys.executable, "-c", "print('status-ok')"],
+            "required": True,
+            "description": "Unit-test CLI auth profile.",
+        }
+        workspace.save_config()
+        errors, warnings = validate_auth(workspace)
+        self.assertEqual(errors, [])
+        self.assertEqual(warnings, [])
+        result = run_auth_command(workspace, "unit-auth", "status")
+        self.assertEqual(result["returncode"], 0)
+        self.assertIn("status-ok", result["stdout"])
+        rows = {row["id"]: row for row in auth_rows(workspace)}
+        self.assertEqual(rows["unit-auth"]["available"], "yes")
+
+    def test_api_runner_uses_openai_compatible_profile(self) -> None:
+        workspace = self.make_workspace()
+
+        class ApiHandler(BaseHTTPRequestHandler):
+            def log_message(self, format: str, *args: object) -> None:
+                return
+
+            def do_POST(self) -> None:
+                length = int(self.headers.get("content-length", "0"))
+                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                body = json.dumps(
+                    {"choices": [{"message": {"content": "api-output:" + payload["model"]}}]}
+                ).encode("utf-8")
+                self.send_response(200)
+                self.send_header("content-type", "application/json")
+                self.send_header("content-length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), ApiHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        host, port = server.server_address
+
+        workspace.config["api"]["profiles"]["unit-api"] = {
+            "type": "openai-compatible",
+            "baseUrl": f"http://{host}:{port}/v1",
+            "apiKeyEnv": "",
+            "chatPath": "/chat/completions",
+            "timeoutSeconds": 30,
+            "description": "Unit-test API profile.",
+        }
+        workspace.config["models"]["profiles"]["unit-api"] = {
+            "provider": "unit-api",
+            "model": "unit-model",
+            "runner": "api",
+            "apiProfile": "unit-api",
+            "command": [],
+            "timeoutSeconds": 30,
+            "description": "Unit-test API model.",
+        }
+        workspace.save_config()
+        errors, _warnings = validate_api(workspace)
+        self.assertEqual(errors, [])
+        rows = {row["id"]: row for row in api_rows(workspace)}
+        self.assertEqual(rows["unit-api"]["baseUrl"], f"http://{host}:{port}/v1")
+
+        record, result = run_agent(
+            workspace,
+            "planner",
+            "Plan a release",
+            model_name="unit-api",
+            execute=True,
+        )
+        self.assertEqual(result["returncode"], 0)
+        self.assertEqual(result["stdout"], "api-output:unit-model")
+        payload = json.loads(record.read_text(encoding="utf-8"))
+        self.assertEqual(payload["status"], "ok")
+        self.assertEqual(payload["result"]["apiProfile"], "unit-api")
+
     def test_hermes_reflections_keep_source_metadata(self) -> None:
         workspace = self.make_workspace()
         records = {skill.name: skill for skill in discover_skills(workspace)}
@@ -134,7 +224,12 @@ class WorkspaceTest(unittest.TestCase):
         self.assertIn("warnings", data)
         self.assertIn("summary", data)
         self.assertIn("models", data)
-        self.assertGreaterEqual(data["metrics"]["modelsTotal"], 3)
+        self.assertIn("auth", data)
+        self.assertIn("api", data)
+        self.assertIn("gateway", data)
+        self.assertGreaterEqual(data["metrics"]["modelsTotal"], 4)
+        self.assertGreaterEqual(data["metrics"]["authProfiles"], 2)
+        self.assertGreaterEqual(data["metrics"]["apiProfiles"], 2)
 
     def test_validate_agents_reports_missing_allowlist_skills(self) -> None:
         workspace = self.make_workspace()
@@ -180,6 +275,9 @@ class WorkspaceTest(unittest.TestCase):
         self.assertIn("metrics", status)
         self.assertIn("jobs", status)
         self.assertIn("models", status)
+        self.assertIn("auth", status)
+        self.assertIn("api", status)
+        self.assertIn("gateway", status)
 
         body = json.dumps({"agent": "planner", "model": "packet", "task": "Plan a release"}).encode("utf-8")
         request = Request(
@@ -193,6 +291,42 @@ class WorkspaceTest(unittest.TestCase):
         self.assertIn("record", run)
         self.assertIn("dashboard", run)
         self.assertTrue(Path(run["record"]).exists())
+
+    def test_gateway_status_and_run_api(self) -> None:
+        workspace = self.make_workspace()
+        workspace.config["gateway"]["tokenEnv"] = "BIRKIN_TEST_GATEWAY_TOKEN"
+        workspace.save_config()
+
+        class BoundGateway(GatewayHandler):
+            pass
+
+        BoundGateway.workspace = workspace
+        server = ThreadingHTTPServer(("127.0.0.1", 0), BoundGateway)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        host, port = server.server_address
+
+        with urlopen(f"http://{host}:{port}/health", timeout=5) as response:
+            health = json.loads(response.read().decode("utf-8"))
+        self.assertEqual(health["status"], "ok")
+
+        with urlopen(f"http://{host}:{port}/api/models", timeout=5) as response:
+            models = json.loads(response.read().decode("utf-8"))
+        self.assertGreaterEqual(len(models["models"]), 1)
+
+        body = json.dumps({"agent": "planner", "model": "packet", "task": "Plan a release"}).encode("utf-8")
+        request = Request(
+            f"http://{host}:{port}/api/run",
+            data=body,
+            headers={"content-type": "application/json"},
+            method="POST",
+        )
+        with urlopen(request, timeout=5) as response:
+            run = json.loads(response.read().decode("utf-8"))
+        self.assertIn("record", run)
+        self.assertFalse(run["result"]["executed"])
 
 
 if __name__ == "__main__":

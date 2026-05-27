@@ -151,6 +151,7 @@ INDEX_HTML = """<!doctype html>
       padding: 9px;
     }
     textarea { min-height: 112px; resize: vertical; }
+    input[type="checkbox"] { margin-right: 6px; }
     .form-row { margin-bottom: 10px; }
     .actions { display: flex; justify-content: flex-end; gap: 8px; }
     .button {
@@ -203,6 +204,9 @@ INDEX_HTML = """<!doctype html>
       <button class="active" data-tab="dashboard">Dashboard</button>
       <button data-tab="jobs">Jobs</button>
       <button data-tab="models">Models</button>
+      <button data-tab="auth">Auth</button>
+      <button data-tab="api">API</button>
+      <button data-tab="gateway">Gateway</button>
       <button data-tab="skills">Skills</button>
       <button data-tab="agents">Agents</button>
       <button data-tab="warnings">Warnings</button>
@@ -244,6 +248,7 @@ INDEX_HTML = """<!doctype html>
               <div class="form-row"><label for="agent">Agent</label><select id="agent"></select></div>
               <div class="form-row"><label for="model">Model</label><select id="model"></select></div>
               <div class="form-row"><label for="task">Task</label><textarea id="task">Plan a safe next step for this workspace.</textarea></div>
+              <div class="form-row"><label><input id="execute" type="checkbox">Execute selected runner</label></div>
               <div class="actions"><button class="button" id="build">Run</button></div>
               <pre id="packet"></pre>
             </div>
@@ -256,6 +261,9 @@ INDEX_HTML = """<!doctype html>
       </section>
       <section id="jobs"><div class="panel"><h2>All Jobs</h2><table id="jobs-full-table"></table></div></section>
       <section id="models"><div class="panel"><h2>Models</h2><table id="models-table"></table></div></section>
+      <section id="auth"><div class="panel"><h2>Auth</h2><table id="auth-table"></table></div></section>
+      <section id="api"><div class="panel"><h2>API Profiles</h2><table id="api-table"></table></div></section>
+      <section id="gateway"><div class="panel"><h2>Gateway</h2><pre id="gateway-json"></pre></div></section>
       <section id="skills"><div class="panel"><h2>Skills</h2><table id="skills-table"></table></div></section>
       <section id="agents"><div class="panel"><h2>Agents</h2><table id="agents-table"></table></div></section>
       <section id="warnings"><div class="panel"><h2>Warnings</h2><table id="warnings-full-table"></table></div></section>
@@ -342,6 +350,7 @@ INDEX_HTML = """<!doctype html>
       document.querySelector("#metric-failed").textContent = d.metrics.failedJobs;
       document.querySelector("#metric-warnings").textContent = d.metrics.warningCount;
       document.querySelector("#metric-models").textContent = d.metrics.modelsTotal;
+      document.querySelector("#metric-models").nextElementSibling.textContent = `${d.metrics.authProfiles} auth / ${d.metrics.apiProfiles} api`;
       document.querySelector("#metric-skills").textContent = d.metrics.skillsEnabled;
       document.querySelector("#metric-skills-detail").textContent = `${d.metrics.skillsTotal} total`;
       renderUsage(d.usage);
@@ -360,9 +369,29 @@ INDEX_HTML = """<!doctype html>
         {key: "provider", label: "Provider"},
         {key: "model", label: "Model"},
         {key: "runner", label: "Runner"},
+        {key: "apiProfile", label: "API Profile"},
         {key: "command", label: "Command"},
         {key: "description", label: "Description"}
       ]);
+      table(document.querySelector("#auth-table"), d.auth, [
+        {key: "id", label: "ID"},
+        {key: "type", label: "Type"},
+        {key: "provider", label: "Provider"},
+        {key: "binary", label: "Binary"},
+        {key: "available", label: "Available"},
+        {key: "required", label: "Required"},
+        {key: "description", label: "Description"}
+      ]);
+      table(document.querySelector("#api-table"), d.api, [
+        {key: "id", label: "ID"},
+        {key: "type", label: "Type"},
+        {key: "baseUrl", label: "Base URL"},
+        {key: "apiKeyEnv", label: "Key Env"},
+        {key: "keyPresent", label: "Key Present"},
+        {key: "chatPath", label: "Chat Path"},
+        {key: "description", label: "Description"}
+      ]);
+      document.querySelector("#gateway-json").textContent = JSON.stringify(d.gateway, null, 2);
       table(document.querySelector("#skills-table"), d.skills, [
         {key: "name", label: "Name"},
         {key: "enabled", label: "Enabled"},
@@ -406,7 +435,8 @@ INDEX_HTML = """<!doctype html>
         body: JSON.stringify({
           agent: document.querySelector("#agent").value,
           model: document.querySelector("#model").value,
-          task: document.querySelector("#task").value
+          task: document.querySelector("#task").value,
+          execute: document.querySelector("#execute").checked
         })
       });
       document.querySelector("#packet").textContent = JSON.stringify(await res.json(), null, 2);
@@ -461,7 +491,10 @@ class Handler(BaseHTTPRequestHandler):
             agent_id = str(payload.get("agent") or "").strip()
             model = str(payload.get("model") or "").strip() or None
             provider = str(payload.get("provider") or "").strip() or None
+            runner = str(payload.get("runner") or "").strip() or None
             task = str(payload.get("task") or "").strip()
+            execute = bool(payload.get("execute") or False)
+            include_skill_bodies = bool(payload.get("includeSkillBodies") or False)
             if not agent_id or not task:
                 self.send_json({"error": "agent and task are required"}, 400)
                 return
@@ -470,9 +503,11 @@ class Handler(BaseHTTPRequestHandler):
                     self.workspace,
                     agent_id,
                     task,
+                    runner_name=runner,
                     model_name=model,
                     provider_name=provider,
-                    execute=False,
+                    include_skill_bodies=include_skill_bodies,
+                    execute=execute,
                 )
             except Exception as exc:
                 self.send_json({"error": str(exc)}, 400)

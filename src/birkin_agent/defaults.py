@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 DEFAULT_CONFIG = {
     "version": 1,
@@ -62,6 +62,12 @@ DEFAULT_CONFIG = {
             "timeoutSeconds": 1800,
             "description": "Optional command adapter. Provide an argv list such as ['codex', 'exec', '-'].",
         },
+        "api": {
+            "type": "api",
+            "profile": "openai-compatible",
+            "timeoutSeconds": 1800,
+            "description": "OpenAI-compatible chat completions API adapter.",
+        },
     },
     "models": {
         "default": "packet",
@@ -82,6 +88,15 @@ DEFAULT_CONFIG = {
                 "timeoutSeconds": 1800,
                 "description": "Local Codex CLI profile. Requires `codex` on PATH and a valid local login.",
             },
+            "api-openai": {
+                "provider": "openai-compatible",
+                "model": "gpt-5.5",
+                "runner": "api",
+                "apiProfile": "openai-compatible",
+                "command": [],
+                "timeoutSeconds": 1800,
+                "description": "OpenAI-compatible API profile. Requires OPENAI_API_KEY when using the default endpoint.",
+            },
             "custom-local": {
                 "provider": "local-cli",
                 "model": "local",
@@ -91,6 +106,56 @@ DEFAULT_CONFIG = {
                 "description": "Template profile for any local model CLI. Fill command with argv strings.",
             },
         },
+    },
+    "auth": {
+        "profiles": {
+            "codex-cli": {
+                "type": "local-cli-oauth",
+                "provider": "openai-codex-cli",
+                "binary": "codex",
+                "loginCommand": ["codex", "login"],
+                "logoutCommand": ["codex", "logout"],
+                "statusCommand": ["codex", "doctor"],
+                "required": False,
+                "description": "Delegates OAuth/login state to the local Codex CLI without storing tokens in Birkin.",
+            },
+            "custom-cli": {
+                "type": "local-cli-oauth",
+                "provider": "local-cli",
+                "binary": "",
+                "loginCommand": [],
+                "logoutCommand": [],
+                "statusCommand": [],
+                "required": False,
+                "description": "Template for another OAuth-capable local CLI.",
+            },
+        },
+    },
+    "api": {
+        "profiles": {
+            "openai-compatible": {
+                "type": "openai-compatible",
+                "baseUrl": "https://api.openai.com/v1",
+                "apiKeyEnv": "OPENAI_API_KEY",
+                "chatPath": "/chat/completions",
+                "timeoutSeconds": 1800,
+                "description": "OpenAI-compatible chat completions endpoint.",
+            },
+            "local-compatible": {
+                "type": "openai-compatible",
+                "baseUrl": "http://127.0.0.1:1234/v1",
+                "apiKeyEnv": "",
+                "chatPath": "/chat/completions",
+                "timeoutSeconds": 1800,
+                "description": "Template for a local OpenAI-compatible server.",
+            },
+        },
+    },
+    "gateway": {
+        "host": "127.0.0.1",
+        "port": 8770,
+        "tokenEnv": "BIRKIN_GATEWAY_TOKEN",
+        "requireToken": False,
     },
     "improvement": {
         "mode": "proposal",
@@ -109,7 +174,7 @@ DEFAULT_AGENT_FILES = {
 2. Treat `SKILL.md` folders as procedural memory, not executable trust.
 3. Keep claims tied to source files, run records, or cited external references.
 4. Prefer proposal-mode self-improvement before changing skills automatically.
-5. Run `birkin doctor`, `birkin skills validate`, tests, and code review after code changes.
+5. Run `birkin-codex doctor`, `birkin-codex skills validate`, tests, and code review after code changes.
 """,
     "SOUL.md": """# Workspace Soul
 
@@ -120,13 +185,46 @@ and auditable run records over heavyweight services.
     "TOOLS.md": """# Tool Policy
 
 The default model profile is `packet`; it generates a prompt packet and run record.
-Configure `models.profiles.<id>.command` in `birkin.json` before allowing a subagent
-to call an external model CLI. Keep runner commands as argv arrays, not shell strings.
+Configure a local CLI command or API profile in `birkin.json` before allowing a subagent
+to call an external model. Keep runner commands as argv arrays, not shell strings.
+Store secrets in the local CLI auth store or environment variables, not in `birkin.json`.
 """,
 }
 
 
 DEFAULT_SCRIPT_FILES = {
+    "scripts/birkin-codex": """#!/usr/bin/env sh
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+ROOT_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+PYTHON_BIN=${PYTHON:-python3}
+
+if [ -n "${PYTHONPATH:-}" ]; then
+  export PYTHONPATH="$ROOT_DIR/src:$PYTHONPATH"
+else
+  export PYTHONPATH="$ROOT_DIR/src"
+fi
+
+exec "$PYTHON_BIN" -m birkin_agent "$@"
+""",
+    "scripts/birkin-codex.ps1": """param(
+  [Parameter(ValueFromRemainingArguments = $true)]
+  [string[]]$RemainingArgs
+)
+
+$RootDir = Resolve-Path (Join-Path $PSScriptRoot "..")
+$SrcDir = Join-Path $RootDir "src"
+
+if ($env:PYTHONPATH) {
+  $env:PYTHONPATH = "$SrcDir;$env:PYTHONPATH"
+} else {
+  $env:PYTHONPATH = $SrcDir
+}
+
+py -m birkin_agent @RemainingArgs
+exit $LASTEXITCODE
+""",
     "scripts/birkin": """#!/usr/bin/env sh
 set -eu
 
@@ -225,10 +323,16 @@ compatibility with their private internals.
   allowlists and writes auditable run records.
 - `src/birkin_agent/models.py`: resolves Hermes-style model profiles, local CLI
   command templates, defaults, validation, and per-run overrides.
+- `src/birkin_agent/auth.py`: manages local CLI OAuth/auth profiles by delegating
+  login, logout, and status commands to external CLIs such as `codex`.
+- `src/birkin_agent/api.py`: calls OpenAI-compatible chat completions endpoints
+  through configured API profiles.
+- `src/birkin_agent/gateway.py`: serves a local machine-facing HTTP gateway for
+  health, status, model, auth, API, and run operations.
 - `src/birkin_agent/improve.py`: records lessons, gathers signals, creates pending
   skill improvement proposals, and applies approved patches.
 - `src/birkin_agent/dashboard.py`: turns run records, usage, warnings, agents, and
-  skills into dashboard API data.
+  skills into dashboard API data, including model, auth, API, and gateway status.
 - `src/birkin_agent/web.py`: serves a local operator dashboard with running jobs,
   result summaries, status, usage, warnings, skills, agents, and job generation.
 - `skills/`: bundled starter skill set covering core, tools, development, creative,
@@ -253,8 +357,12 @@ The first skill with a given `name` wins. Later duplicates are reported as shado
 
 - Default runner is `dry-run`.
 - Default model profile is `packet`, which never calls an external model.
-- Real CLI execution requires an explicit model profile command in `birkin.json`
+- Real CLI or API execution requires an explicit model profile in `birkin.json`
   and `--execute` on the run command.
+- Local CLI OAuth profiles call the external tool's own login store and do not write
+  tokens to Birkin config.
+- The gateway binds to localhost by default. If `BIRKIN_GATEWAY_TOKEN` is set, or
+  `gateway.requireToken` is true, it requires a bearer token or `x-birkin-token`.
 - Skills are procedural memory, not executable trust.
 - Web UI escapes workspace-provided table values before rendering.
 - Runtime artifacts live under ignored workspace directories.
@@ -266,8 +374,7 @@ python -m unittest discover -s tests
 python -m compileall -q src tests
 python -m birkin_agent doctor
 python -m birkin_agent skills validate
-```
-"""
+```"""
 
 
 MACOS_DOC = r"""# macOS Usage
@@ -287,10 +394,10 @@ runtime uses only the Python standard library.
 
 ```sh
 cd birkin-agent
-./scripts/birkin doctor
-./scripts/birkin skills list
-./scripts/birkin agents run planner --task "Plan the next release"
-./scripts/birkin web --port 8765
+./scripts/birkin-codex doctor
+./scripts/birkin-codex skills list
+./scripts/birkin-codex agents run planner --task "Plan the next release"
+./scripts/birkin-codex web --port 8765
 ```
 
 Open `http://127.0.0.1:8765`.
@@ -302,9 +409,9 @@ cd birkin-agent
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -e .
-birkin doctor
-birkin skills validate
-birkin web --port 8765
+birkin-codex doctor
+birkin-codex skills validate
+birkin-codex web --port 8765
 ```
 
 ## Local CLI Runner
@@ -313,15 +420,15 @@ Birkin does not call a model by default. To connect a local CLI, choose or add a
 model profile:
 
 ```sh
-birkin model list
-birkin model use codex-local
-birkin agents run builder --model codex-local --execute --task "Implement the change"
+birkin-codex model list
+birkin-codex model use codex-local
+birkin-codex agents run builder --model codex-local --execute --task "Implement the change"
 ```
 
 To add a custom local CLI profile:
 
 ```sh
-birkin model add my-local \
+birkin-codex model add my-local \
   --provider local-cli \
   --model local-model \
   --runner local-cli \
@@ -329,7 +436,28 @@ birkin model add my-local \
 ```
 
 Keep the command as an argv array. Do not put shell pipelines or secrets in this config.
-"""
+
+## Auth, API, and Gateway
+
+Local CLI auth delegates login state to the installed tool:
+
+```sh
+birkin-codex auth list
+birkin-codex auth login codex-cli
+```
+
+API profiles can call OpenAI-compatible endpoints:
+
+```sh
+export OPENAI_API_KEY=...
+birkin-codex agents run builder --model api-openai --execute --task "Draft the change"
+```
+
+Run the local machine-facing gateway:
+
+```sh
+birkin-codex gateway run --port 8770
+```"""
 
 
 DEFAULT_DASHBOARD_DOC = r"""# Dashboard
@@ -340,7 +468,7 @@ The Birkin Web UI is an operator dashboard, not a landing page. It is served by 
 Python standard library:
 
 ```sh
-birkin web --port 8765
+birkin-codex web --port 8765
 ```
 
 Open `http://127.0.0.1:8765`.
@@ -353,8 +481,10 @@ Open `http://127.0.0.1:8765`.
 - Completed and failed job counts.
 - Recent job results with status, agent, model, task, result summary, usage, and timestamp.
 - Model profile count and a model selector for new jobs.
+- Auth, API, and gateway tabs for integration status.
 - Warnings in a separate panel.
-- A job creation form that writes a dry-run record by default.
+- A job creation form that writes a dry-run record by default and can explicitly
+  execute the selected runner when the execute checkbox is enabled.
 
 ## Data Source
 
@@ -362,15 +492,15 @@ The dashboard reads:
 
 - `runs/*.json` for job history, summaries, status, and usage.
 - `skills/**/SKILL.md` for skill status and gating warnings.
-- `birkin.json` for agents, models, runners, and allowlists.
+- `birkin.json` for agents, models, runners, auth profiles, API profiles, gateway
+  config, and allowlists.
 - `memory/`, `reviews/`, and `runs/` for improvement signals.
 
 ## Warning Model
 
 Warnings are separate from job results. They include workspace doctor warnings, skill
-validation warnings, model profile warnings, agent allowlist warnings, and gated skills
-such as missing environment variables or missing config.
-"""
+validation warnings, model profile warnings, auth/API/gateway warnings, agent allowlist
+warnings, and gated skills such as missing environment variables or missing config."""
 
 
 MODEL_SELECTION_DOC = r"""# Model Selection
@@ -383,13 +513,14 @@ profile is `packet`, which never calls an external model.
 ## Commands
 
 ```sh
-birkin model list
-birkin model use packet
-birkin model use codex-local
-birkin agents run builder --model codex-local --execute --task "Implement the change"
+birkin-codex model list
+birkin-codex model use packet
+birkin-codex model use codex-local
+birkin-codex model use api-openai
+birkin-codex agents run builder --model codex-local --execute --task "Implement the change"
 ```
 
-`birkin models` is an alias for `birkin model`.
+`birkin-codex models` is an alias for `birkin-codex model`.
 
 ## Local CLI Profiles
 
@@ -417,19 +548,193 @@ at run time.
 Add a custom profile without editing JSON by hand:
 
 ```sh
-birkin model add my-local \
+birkin-codex model add my-local \
   --provider local-cli \
   --model local-model \
   --runner local-cli \
   --command-json '["my-model-cli","--model","{model}","-"]'
 ```
 
+## API Profiles
+
+API model profiles use the `api` runner and point at an API profile with `apiProfile`:
+
+```json
+{
+  "models": {
+    "profiles": {
+      "api-openai": {
+        "provider": "openai-compatible",
+        "model": "gpt-5.5",
+        "runner": "api",
+        "apiProfile": "openai-compatible",
+        "command": [],
+        "timeoutSeconds": 1800
+      }
+    }
+  }
+}
+```
+
+Add a local OpenAI-compatible endpoint and model profile:
+
+```sh
+birkin-codex api add local-dev \
+  --base-url http://127.0.0.1:1234/v1 \
+  --chat-path /chat/completions
+
+birkin-codex model add local-api \
+  --provider local-dev \
+  --model local-model \
+  --runner api \
+  --api-profile local-dev
+```
+
 ## Safety
 
-- Model profiles do not execute unless `birkin agents run --execute` is used.
+- Model profiles do not execute unless `birkin-codex agents run --execute` is used.
 - Commands are argv arrays, not shell strings.
 - Secrets should stay in the local CLI's own auth store or environment, not in `birkin.json`.
-"""
+- API keys are read from environment variables such as `OPENAI_API_KEY`."""
+
+
+AUTH_API_GATEWAY_DOC = r"""# Auth, API, and Gateway
+
+Scope date: 2026-05-27.
+
+Birkin supports three Hermes-style integration paths while keeping the default runner
+safe and local:
+
+- Local CLI auth profiles delegate OAuth/login state to a tool such as `codex`.
+- API profiles call OpenAI-compatible chat completions endpoints.
+- The gateway exposes a local HTTP control surface for status, model lists, auth status,
+  and run creation.
+
+## Local CLI Auth
+
+Birkin does not store OAuth tokens. The default `codex-cli` auth profile calls the local
+Codex CLI login, logout, and status commands:
+
+```sh
+birkin-codex auth list
+birkin-codex auth status codex-cli
+birkin-codex auth login codex-cli
+birkin-codex auth logout codex-cli
+```
+
+The profile lives in `birkin.json` under `auth.profiles.codex-cli`:
+
+```json
+{
+  "type": "local-cli-oauth",
+  "provider": "openai-codex-cli",
+  "binary": "codex",
+  "loginCommand": ["codex", "login"],
+  "logoutCommand": ["codex", "logout"],
+  "statusCommand": ["codex", "doctor"]
+}
+```
+
+Add another OAuth-capable local CLI profile:
+
+```sh
+birkin-codex auth add my-cli \
+  --provider local-cli \
+  --binary my-cli \
+  --login-json '["my-cli","login"]' \
+  --logout-json '["my-cli","logout"]' \
+  --status-json '["my-cli","status"]'
+```
+
+Commands are argv arrays. Do not put shell pipelines, token strings, or secrets in
+`birkin.json`.
+
+## API Profiles
+
+API profiles target OpenAI-compatible chat completions APIs. The default
+`openai-compatible` profile uses `https://api.openai.com/v1` and reads the key from
+`OPENAI_API_KEY`.
+
+```sh
+birkin-codex api list
+birkin-codex model use api-openai
+birkin-codex agents run builder --model api-openai --execute --task "Draft the change"
+```
+
+For a local server:
+
+```sh
+birkin-codex api add local-dev \
+  --base-url http://127.0.0.1:1234/v1 \
+  --chat-path /chat/completions
+
+birkin-codex model add local-api \
+  --provider local-dev \
+  --model local-model \
+  --runner api \
+  --api-profile local-dev
+```
+
+The API runner sends one user message containing the built Birkin prompt packet. It
+extracts `choices[0].message.content` when the response uses the standard chat
+completions shape.
+
+## Gateway
+
+The gateway is a local machine-facing API. It is separate from the dashboard UI.
+
+```sh
+birkin-codex gateway routes
+birkin-codex gateway status
+birkin-codex gateway run --port 8770
+```
+
+Default URL:
+
+```text
+http://127.0.0.1:8770
+```
+
+Routes:
+
+```text
+GET /health
+GET /routes
+GET /api/status
+GET /api/models
+GET /api/auth
+GET /api/api-profiles
+GET /api/gateway
+POST /api/run
+POST /api/auth/{profile}/status
+POST /api/auth/{profile}/login
+POST /api/auth/{profile}/logout
+```
+
+Create a packet-only run through the gateway:
+
+```sh
+curl -s http://127.0.0.1:8770/api/run \
+  -H 'content-type: application/json' \
+  -d '{"agent":"planner","model":"packet","task":"Plan the next step"}'
+```
+
+Set `"execute": true` to allow the selected runner to execute. The same `--execute`
+safety boundary used by the CLI is preserved in the gateway request body.
+
+## Token Gate
+
+By default, the gateway binds to `127.0.0.1` without requiring a token. If
+`BIRKIN_GATEWAY_TOKEN` is set, or if `gateway.requireToken` is true, requests must include
+one of these headers:
+
+```text
+Authorization: Bearer <token>
+x-birkin-token: <token>
+```
+
+If the gateway is configured for a non-localhost host without token auth, `birkin-codex doctor`
+reports a warning."""
 
 
 DEFAULT_DOC_FILES = {
@@ -438,6 +743,7 @@ DEFAULT_DOC_FILES = {
     "docs/dashboard.md": DEFAULT_DASHBOARD_DOC,
     "docs/macos.md": MACOS_DOC,
     "docs/model-selection.md": MODEL_SELECTION_DOC,
+    "docs/auth-api-gateway.md": AUTH_API_GATEWAY_DOC,
 }
 
 
@@ -473,10 +779,13 @@ implementation small and inspectable.
 | Skills | Indexes AgentSkills-style `SKILL.md` folders with metadata, precedence, validation, and gating. |
 | Hermes coverage | Reflects all 90 Hermes bundled skill directories as lightweight `hermes-<name>` capability markers. |
 | OpenClaw coverage | Reflects all 57 OpenClaw upstream skill directories as lightweight `openclaw-<name>` capability markers. |
-| Model selection | Provides Hermes-style model profiles for packet-only runs, Codex CLI, or any local CLI argv template. |
+| Model selection | Provides Hermes-style model profiles for packet-only runs, Codex CLI, OpenAI-compatible APIs, or any local CLI argv template. |
+| Auth | Delegates local CLI OAuth/login state to tools such as `codex` without storing tokens in Birkin. |
+| API | Calls OpenAI-compatible chat completions endpoints when an API model profile is selected and executed. |
+| Gateway | Serves a local machine-facing HTTP gateway for status, auth, model, API, and run operations. |
 | Subagents | Builds role-scoped prompt packets for planner, builder, reviewer, researcher, and operator agents. |
 | Self-improvement | Records lessons, proposes skill patches, and applies approved improvements. |
-| CLI | Runs as `birkin` after install, `python -m birkin_agent`, `scripts/birkin`, or `scripts/birkin.ps1`. |
+| CLI | Runs as `birkin-codex` after install, `python -m birkin_agent`, `scripts/birkin-codex`, or `scripts/birkin-codex.ps1`. `birkin` remains a compatibility alias. |
 | Dashboard | Shows jobs, result summaries, status, estimated usage, warnings, skills, and agents at `http://127.0.0.1:8765`. |
 
 ## Why This Exists
@@ -502,10 +811,10 @@ Birkin takes the parts that are useful for a small agent workspace:
 ```sh
 git clone https://github.com/ashmoonori-afk/birkin-agent.git
 cd birkin-agent
-./scripts/birkin doctor
-./scripts/birkin skills list
-./scripts/birkin agents run planner --task "Plan the next release"
-./scripts/birkin web --port 8765
+./scripts/birkin-codex doctor
+./scripts/birkin-codex skills list
+./scripts/birkin-codex agents run planner --task "Plan the next release"
+./scripts/birkin-codex web --port 8765
 ```
 
 ### Windows PowerShell
@@ -513,10 +822,10 @@ cd birkin-agent
 ```powershell
 git clone https://github.com/ashmoonori-afk/birkin-agent.git
 cd birkin-agent
-.\scripts\birkin.ps1 doctor
-.\scripts\birkin.ps1 skills list
-.\scripts\birkin.ps1 agents run planner --task "Plan the next release"
-.\scripts\birkin.ps1 web --port 8765
+.\scripts\birkin-codex.ps1 doctor
+.\scripts\birkin-codex.ps1 skills list
+.\scripts\birkin-codex.ps1 agents run planner --task "Plan the next release"
+.\scripts\birkin-codex.ps1 web --port 8765
 ```
 
 Open the dashboard:
@@ -531,9 +840,9 @@ http://127.0.0.1:8765
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -e .
-birkin doctor
-birkin skills validate
-birkin web --port 8765
+birkin-codex doctor
+birkin-codex skills validate
+birkin-codex web --port 8765
 ```
 
 On Windows, use `.venv\Scripts\activate` and then the same `pip install -e .` flow.
@@ -541,18 +850,21 @@ On Windows, use `.venv\Scripts\activate` and then the same `pip install -e .` fl
 ## Core Commands
 
 ```sh
-birkin doctor
-birkin skills list
-birkin skills validate
-birkin skills create release-checklist --description "Review release readiness."
-birkin model list
-birkin model use codex-local
-birkin agents list
-birkin agents packet planner --model packet --task "Plan the work"
-birkin agents run builder --model codex-local --task "Prepare the implementation"
-birkin improve record --lesson "LESSON: Validate skills before running an agent." --skill skill-authoring
-birkin improve propose
-birkin web --port 8765
+birkin-codex doctor
+birkin-codex skills list
+birkin-codex skills validate
+birkin-codex skills create release-checklist --description "Review release readiness."
+birkin-codex model list
+birkin-codex model use codex-local
+birkin-codex auth list
+birkin-codex api list
+birkin-codex gateway routes
+birkin-codex agents list
+birkin-codex agents packet planner --model packet --task "Plan the work"
+birkin-codex agents run builder --model codex-local --task "Prepare the implementation"
+birkin-codex improve record --lesson "LESSON: Validate skills before running an agent." --skill skill-authoring
+birkin-codex improve propose
+birkin-codex web --port 8765
 ```
 
 ## Dashboard
@@ -568,6 +880,7 @@ It shows:
 - Status counts.
 - Estimated prompt usage.
 - Selectable model profiles.
+- Auth, API, and gateway status.
 - Enabled and gated skills.
 - Agents and their skill allowlists.
 - Warnings in a separate panel.
@@ -600,20 +913,22 @@ See [Hermes Skill Reflection Map](docs/hermes-skill-map.md) and
 
 The default model profile is `packet`. It writes a run record and prompt packet without
 calling a model. This mirrors the Hermes split between terminal model setup and per-run
-model switching, but keeps the implementation local and inspectable.
+model switching, but keeps the implementation local and inspectable. Birkin supports
+packet-only, local CLI, and OpenAI-compatible API runners.
 
 List and choose model profiles:
 
 ```sh
-birkin model list
-birkin model use packet
-birkin model use codex-local
+birkin-codex model list
+birkin-codex model use packet
+birkin-codex model use codex-local
+birkin-codex model use api-openai
 ```
 
 Run with an explicit model profile:
 
 ```sh
-birkin agents run builder --model codex-local --execute --task "Implement the change"
+birkin-codex agents run builder --model codex-local --execute --task "Implement the change"
 ```
 
 Configure local CLI profiles in `birkin.json`:
@@ -638,7 +953,7 @@ Configure local CLI profiles in `birkin.json`:
 You can also add a profile from the local CLI:
 
 ```sh
-birkin model add codex-fast \
+birkin-codex model add codex-fast \
   --provider openai-codex-cli \
   --model gpt-5.5 \
   --runner local-cli \
@@ -647,23 +962,54 @@ birkin model add codex-fast \
 
 Keep commands as argv arrays. Do not put shell pipelines or secrets in `birkin.json`.
 
+## Auth, API, and Gateway
+
+Birkin adds Hermes-style integration without storing provider secrets in the workspace.
+Local CLI auth profiles delegate login state to the installed tool:
+
+```sh
+birkin-codex auth list
+birkin-codex auth status codex-cli
+birkin-codex auth login codex-cli
+```
+
+API profiles target OpenAI-compatible chat completions endpoints:
+
+```sh
+birkin-codex api list
+birkin-codex agents run builder --model api-openai --execute --task "Draft the change"
+```
+
+The gateway is separate from the dashboard UI and exposes local HTTP routes for status,
+models, auth, API profiles, and run creation:
+
+```sh
+birkin-codex gateway routes
+birkin-codex gateway run --port 8770
+```
+
+See [Auth, API, and Gateway](docs/auth-api-gateway.md).
+
 ## Advantages
 
 - Lightweight: Python standard library core, no service stack required.
 - Inspectable: run records, skill files, and proposals are plain text or JSON.
 - Safer by default: dry-run runner, explicit `--execute`, and proposal-mode improvement.
 - Portable: macOS/Linux shell script, Windows PowerShell script, and editable Python install.
-- Model-profile based: switch between packet-only, Codex CLI, or a custom local CLI without code changes.
+- Model-profile based: switch between packet-only, Codex CLI, OpenAI-compatible API, or a custom local CLI without code changes.
+- Auth-aware: local CLI OAuth is delegated to the tool's own login store instead of saved in Birkin config.
+- Gateway-ready: a local HTTP surface can drive runs and status checks from other tools.
 - Hermes-aware: all bundled Hermes skill directories are represented as Birkin capability markers.
 - OpenClaw-aware: every upstream OpenClaw skill directory is represented as a Birkin capability marker.
 - Dashboard-first operations: job status, result summaries, usage, and warnings are visible immediately.
 
 ## Tradeoffs
 
-- Not a drop-in Hermes replacement: no built-in messaging gateway, provider setup wizard, Honcho user model, or cloud terminal backend.
+- Not a drop-in Hermes replacement: no built-in provider setup wizard, Honcho user model, or cloud terminal backend.
 - Not a drop-in OpenClaw replacement: reflection skills are routing markers unless a local adapter is implemented.
 - Hermes and OpenClaw reflections are not vendored upstream implementations; they are source-linked capability maps.
-- No model calls by default: you must choose a local CLI model profile and execute explicitly before real model execution.
+- No model calls by default: you must choose a local CLI or API model profile and execute explicitly before real model execution.
+- Gateway auth is intentionally small: use the local token gate or bind to localhost for operator workflows.
 - Usage is estimated from prompt text and run output, not provider billing APIs.
 - macOS script is included, but this repository was initially verified from Windows; macOS should be tested on a real Mac before release claims beyond CLI portability.
 
@@ -672,7 +1018,8 @@ Keep commands as argv arrays. Do not put shell pipelines or secrets in `birkin.j
 Birkin was shaped by these upstream ideas:
 
 - Hermes README themes: self-improvement, skills, subagents, scheduled automation, model choice, and remote-friendly operation.
-- Hermes model docs: terminal model setup plus per-run model override, adapted here as local CLI profiles.
+- Hermes model docs: terminal model setup plus per-run model override, adapted here as local CLI and API profiles.
+- Hermes auth, proxy, and gateway commands: adapted here as local CLI auth profiles, OpenAI-compatible API execution, and a local HTTP gateway.
 - Hermes skills docs: `SKILL.md` as procedural memory with progressive disclosure.
 - Hermes `skills/`: 90 bundled skill directories reflected as Birkin capability markers.
 - OpenClaw README themes: local-first workspace, multi-agent routing, security defaults, channels, canvas, and skills.
@@ -685,15 +1032,16 @@ Local reference notes are in [docs/reference-notes.md](docs/reference-notes.md).
 ```sh
 python -m unittest discover -s tests
 python -m compileall -q src tests
-birkin doctor
-birkin skills validate
+birkin-codex doctor
+birkin-codex skills validate
 ```
 
 Current snapshot:
 
-- Unit tests: 10 passed.
-- Dashboard smoke check: rendered job metrics, warnings, usage, and run action without console errors.
-- Code review note: [reviews/2026-05-27-model-selection-review.md](reviews/2026-05-27-model-selection-review.md).
+- Unit tests: 13 passed.
+- Dashboard smoke check: dashboard status API reported 4 models, 2 auth profiles, 2 API profiles, and auth/API/gateway tabs in the served HTML.
+- Gateway smoke check: `GET /health` returned `ok` and `GET /api/models` returned 4 model profiles.
+- Code review note: [reviews/2026-05-27-auth-api-gateway-review.md](reviews/2026-05-27-auth-api-gateway-review.md).
 
 ## More
 
@@ -701,7 +1049,7 @@ Current snapshot:
 - [Dashboard](docs/dashboard.md)
 - [macOS usage](docs/macos.md)
 - [Model selection](docs/model-selection.md)
+- [Auth, API, and Gateway](docs/auth-api-gateway.md)
 - [Hermes skill map](docs/hermes-skill-map.md)
 - [OpenClaw skill map](docs/openclaw-skill-map.md)
-- [Reference notes](docs/reference-notes.md)
-"""
+- [Reference notes](docs/reference-notes.md)"""

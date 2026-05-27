@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 from typing import Any
 
+from .api import call_openai_compatible
 from .models import render_model_command, resolve_model_profile
 from .skills import SkillRecord, discover_skills, parse_frontmatter
 from .util import slugify, utc_stamp, write_json
@@ -133,6 +134,7 @@ def build_packet(
             "provider": profile.provider,
             "model": profile.model,
             "runner": runner_key,
+            "apiProfile": profile.api_profile,
             "description": profile.description,
         },
         "task": task,
@@ -250,7 +252,8 @@ def run_agent(
     if not runner:
         raise KeyError(f"runner not found: {runner_key}")
 
-    if runner.get("type") == "packet" or not execute:
+    runner_type = str(runner.get("type") or "")
+    if runner_type == "packet" or not execute:
         record = save_run_record(workspace, agent_id, task, runner_key, "packet-only", packet)
         return record, {"packet": packet, "executed": False}
 
@@ -259,6 +262,20 @@ def run_agent(
         str(packet.get("model", {}).get("id") or model_name or ""),
         str(packet.get("model", {}).get("provider") or provider_name or ""),
     )
+    if runner_type == "api":
+        api_profile = profile.api_profile or str(runner.get("profile") or "")
+        timeout = int(profile.timeout_seconds or runner.get("timeoutSeconds") or 1800)
+        result = call_openai_compatible(
+            workspace,
+            api_profile,
+            packet["prompt"],
+            profile.model,
+            timeout_seconds=timeout,
+        )
+        status = "ok" if result.get("returncode") == 0 else "failed"
+        record = save_run_record(workspace, agent_id, task, runner_key, status, packet, result)
+        return record, result
+
     command = profile.command or runner.get("command")
     if not isinstance(command, list) or not command:
         raise ValueError(

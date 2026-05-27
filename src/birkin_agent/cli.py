@@ -6,6 +6,9 @@ from pathlib import Path
 import sys
 
 from .agents import add_agent, agent_rows, build_packet, run_agent, validate_agents
+from .api import add_api_profile, api_rows, validate_api
+from .auth import add_auth_profile, auth_rows, run_auth_command, validate_auth
+from .gateway import ROUTES, gateway_info, serve_gateway, validate_gateway
 from .improve import append_lesson, apply_improvement, propose_improvement
 from .models import add_model_profile, model_rows, use_model_profile, validate_models
 from .skills import create_skill, discover_skills, skill_rows, validate_skills
@@ -25,7 +28,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="birkin", description="Birkin agent workspace CLI")
+    parser = argparse.ArgumentParser(prog="birkin-codex", description="Birkin Codex agent workspace CLI")
     sub = parser.add_subparsers(required=True)
 
     init = sub.add_parser("init", help="Initialize a Birkin workspace")
@@ -38,6 +41,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     add_model_parser(sub.add_parser("model", help="Select and configure model profiles"))
     add_model_parser(sub.add_parser("models", help="Select and configure model profiles"))
+    add_auth_parser(sub.add_parser("auth", help="Manage local CLI auth profiles"))
+    add_api_parser(sub.add_parser("api", help="Manage OpenAI-compatible API profiles"))
+    add_gateway_parser(sub.add_parser("gateway", help="Run the Birkin local gateway"))
 
     skills = sub.add_parser("skills", help="Manage skills")
     skills_sub = skills.add_subparsers(required=True)
@@ -127,9 +133,68 @@ def add_model_parser(parser: argparse.ArgumentParser) -> None:
     model_add.add_argument("--model", required=True)
     model_add.add_argument("--runner", default="local-cli")
     model_add.add_argument("--command-json", default="[]")
+    model_add.add_argument("--api-profile", default="")
     model_add.add_argument("--timeout", type=int, default=1800)
     model_add.add_argument("--description", default="")
     model_add.set_defaults(func=cmd_models_add)
+
+
+def add_auth_parser(parser: argparse.ArgumentParser) -> None:
+    auth_sub = parser.add_subparsers(required=True)
+    auth_list = auth_sub.add_parser("list")
+    auth_list.add_argument("--json", action="store_true")
+    auth_list.set_defaults(func=cmd_auth_list)
+    auth_status = auth_sub.add_parser("status")
+    auth_status.add_argument("id", nargs="?")
+    auth_status.add_argument("--json", action="store_true")
+    auth_status.set_defaults(func=cmd_auth_status)
+    auth_login = auth_sub.add_parser("login")
+    auth_login.add_argument("id")
+    auth_login.set_defaults(func=cmd_auth_login)
+    auth_logout = auth_sub.add_parser("logout")
+    auth_logout.add_argument("id")
+    auth_logout.add_argument("--json", action="store_true")
+    auth_logout.set_defaults(func=cmd_auth_logout)
+    auth_add = auth_sub.add_parser("add")
+    auth_add.add_argument("id")
+    auth_add.add_argument("--type", default="local-cli-oauth")
+    auth_add.add_argument("--provider", required=True)
+    auth_add.add_argument("--binary", default="")
+    auth_add.add_argument("--login-json", default="[]")
+    auth_add.add_argument("--logout-json", default="[]")
+    auth_add.add_argument("--status-json", default="[]")
+    auth_add.add_argument("--description", default="")
+    auth_add.add_argument("--required", action="store_true")
+    auth_add.set_defaults(func=cmd_auth_add)
+
+
+def add_api_parser(parser: argparse.ArgumentParser) -> None:
+    api_sub = parser.add_subparsers(required=True)
+    api_list = api_sub.add_parser("list")
+    api_list.add_argument("--json", action="store_true")
+    api_list.set_defaults(func=cmd_api_list)
+    api_add = api_sub.add_parser("add")
+    api_add.add_argument("id")
+    api_add.add_argument("--type", default="openai-compatible")
+    api_add.add_argument("--base-url", required=True)
+    api_add.add_argument("--api-key-env", default="")
+    api_add.add_argument("--chat-path", default="/chat/completions")
+    api_add.add_argument("--timeout", type=int, default=1800)
+    api_add.add_argument("--description", default="")
+    api_add.set_defaults(func=cmd_api_add)
+
+
+def add_gateway_parser(parser: argparse.ArgumentParser) -> None:
+    gateway_sub = parser.add_subparsers(required=True)
+    gateway_routes = gateway_sub.add_parser("routes")
+    gateway_routes.set_defaults(func=cmd_gateway_routes)
+    gateway_status = gateway_sub.add_parser("status")
+    gateway_status.add_argument("--json", action="store_true")
+    gateway_status.set_defaults(func=cmd_gateway_status)
+    gateway_run = gateway_sub.add_parser("run")
+    gateway_run.add_argument("--host")
+    gateway_run.add_argument("--port", type=int)
+    gateway_run.set_defaults(func=cmd_gateway_run)
 
 
 def ws() -> Workspace:
@@ -151,12 +216,21 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     model_errors, model_warnings = validate_models(workspace)
     skill_errors, skill_warnings = validate_skills(workspace)
     agent_errors, agent_warnings = validate_agents(workspace)
+    auth_errors, auth_warnings = validate_auth(workspace)
+    api_errors, api_warnings = validate_api(workspace)
+    gateway_errors, gateway_warnings = validate_gateway(workspace)
     errors.extend(model_errors)
     errors.extend(skill_errors)
     errors.extend(agent_errors)
+    errors.extend(auth_errors)
+    errors.extend(api_errors)
+    errors.extend(gateway_errors)
     warnings.extend(model_warnings)
     warnings.extend(skill_warnings)
     warnings.extend(agent_warnings)
+    warnings.extend(auth_warnings)
+    warnings.extend(api_warnings)
+    warnings.extend(gateway_warnings)
     for warning in warnings:
         print(f"warning: {warning}")
     for error in errors:
@@ -173,7 +247,10 @@ def cmd_models_list(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps(rows, indent=2, ensure_ascii=False))
     else:
-        print_table(rows, ["id", "default", "provider", "model", "runner", "command", "description"])
+        print_table(
+            rows,
+            ["id", "default", "provider", "model", "runner", "apiProfile", "command", "description"],
+        )
     return 0
 
 
@@ -193,8 +270,127 @@ def cmd_models_add(args: argparse.Namespace) -> int:
         args.command_json,
         args.timeout,
         args.description,
+        args.api_profile,
     )
     print(f"created model {args.id}")
+    return 0
+
+
+def cmd_auth_list(args: argparse.Namespace) -> int:
+    rows = auth_rows(ws())
+    if args.json:
+        print(json.dumps(rows, indent=2, ensure_ascii=False))
+    else:
+        print_table(rows, ["id", "type", "provider", "binary", "available", "required", "description"])
+    return 0
+
+
+def cmd_auth_status(args: argparse.Namespace) -> int:
+    workspace = ws()
+    if not args.id:
+        rows = auth_rows(workspace)
+        if args.json:
+            print(json.dumps(rows, indent=2, ensure_ascii=False))
+        else:
+            print_table(rows, ["id", "type", "provider", "binary", "available", "required", "description"])
+        return 0
+    result = run_auth_command(workspace, args.id, "status")
+    if args.json:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        if result["stdout"]:
+            print(result["stdout"], end="")
+        if result["stderr"]:
+            print(result["stderr"], end="", file=sys.stderr)
+    return int(result.get("returncode") or 0)
+
+
+def cmd_auth_login(args: argparse.Namespace) -> int:
+    result = run_auth_command(ws(), args.id, "login", interactive=True)
+    return int(result.get("returncode") or 0)
+
+
+def cmd_auth_logout(args: argparse.Namespace) -> int:
+    result = run_auth_command(ws(), args.id, "logout")
+    if args.json:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        if result["stdout"]:
+            print(result["stdout"], end="")
+        if result["stderr"]:
+            print(result["stderr"], end="", file=sys.stderr)
+    return int(result.get("returncode") or 0)
+
+
+def cmd_auth_add(args: argparse.Namespace) -> int:
+    add_auth_profile(
+        ws(),
+        args.id,
+        args.type,
+        args.provider,
+        args.binary,
+        args.login_json,
+        args.logout_json,
+        args.status_json,
+        args.description,
+        args.required,
+    )
+    print(f"created auth profile {args.id}")
+    return 0
+
+
+def cmd_api_list(args: argparse.Namespace) -> int:
+    rows = api_rows(ws())
+    if args.json:
+        print(json.dumps(rows, indent=2, ensure_ascii=False))
+    else:
+        print_table(rows, ["id", "type", "baseUrl", "apiKeyEnv", "keyPresent", "chatPath", "description"])
+    return 0
+
+
+def cmd_api_add(args: argparse.Namespace) -> int:
+    add_api_profile(
+        ws(),
+        args.id,
+        args.type,
+        args.base_url,
+        args.api_key_env,
+        args.chat_path,
+        args.timeout,
+        args.description,
+    )
+    print(f"created api profile {args.id}")
+    return 0
+
+
+def cmd_gateway_routes(args: argparse.Namespace) -> int:
+    for route in ROUTES:
+        print(route)
+    return 0
+
+
+def cmd_gateway_status(args: argparse.Namespace) -> int:
+    info = gateway_info(ws())
+    if args.json:
+        print(json.dumps(info, indent=2, ensure_ascii=False))
+    else:
+        print_table(
+            [
+                {
+                    "host": info["host"],
+                    "port": str(info["port"]),
+                    "authRequired": "yes" if info["authRequired"] else "no",
+                    "tokenEnv": info["tokenEnv"],
+                    "routes": str(len(info["routes"])),
+                }
+            ],
+            ["host", "port", "authRequired", "tokenEnv", "routes"],
+        )
+    return 0
+
+
+def cmd_gateway_run(args: argparse.Namespace) -> int:
+    serve_gateway(ws(), args.host, args.port)
     return 0
 
 

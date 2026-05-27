@@ -2,6 +2,11 @@
 
 Scope date: 2026-05-27.
 
+Reference snapshot:
+
+- Hermes Agent commit: `bb4703c761ea6687b6399aa2e61e0a08fabd3ca3`
+- OpenClaw commit: `8d6b5997375890608a1bb46a08c1f5a819443d59`
+
 ## Sources Used
 
 - Hermes Agent repository: https://github.com/NousResearch/hermes-agent
@@ -22,6 +27,7 @@ Scope date: 2026-05-27.
 - Snapshot-style prompt packets for CLI subagent execution.
 - Web UI as an operator control surface, not a separate backend product.
 - Self-improvement loop based on run records, reviews, memory notes, and user corrections.
+- OpenClaw skill coverage through 57 lightweight `openclaw-<name>` reflection skills.
 
 ## Boundary
 

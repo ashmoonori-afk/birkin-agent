@@ -16,7 +16,8 @@ CLI, and a local Web UI.
 - Windows script: `scripts/birkin.ps1`.
 - Web UI: `birkin web --port 8765`, serving a SaaS-style dashboard at `http://127.0.0.1:8765`.
 - Skill roots: `skills`, `.agents/skills`, `managed-skills`, `bundled-skills`.
-- Bundled skills: 21 total; gated examples include Google Workspace and smart home.
+- Bundled native skills: 21 total; gated examples include Google Workspace and smart home.
+- OpenClaw reflections: 57 `openclaw-<name>` capability marker skills from upstream commit `8d6b5997375890608a1bb46a08c1f5a819443d59`.
 - Default agents: planner, builder, reviewer, researcher, operator.
 
 ## Verification Snapshot

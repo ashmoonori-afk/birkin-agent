@@ -54,6 +54,7 @@ def parse_scalar(value: str) -> Any:
 
 def parse_frontmatter(path: Path) -> tuple[dict[str, Any], str, list[str]]:
     text = path.read_text(encoding="utf-8")
+    text = text.lstrip("\ufeff")
     issues: list[str] = []
     if not text.startswith("---\n"):
         return {}, text, ["missing frontmatter"]

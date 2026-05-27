@@ -13,7 +13,7 @@ No blocking issues found.
 - Consistency: README, `SOUL.md`, default init templates, and docs now describe Birkin as a lightweight Hermes-style Python workspace with macOS/Linux/Windows entrypoints.
 - Security: The default runner is `dry-run`; real model execution requires an explicit argv command. Dashboard table values are escaped before rendering, and agent select options are created with DOM APIs.
 - Platform: `scripts/birkin` uses POSIX `sh` and `python3`; `scripts/birkin.ps1` works on Windows; editable install exposes the `birkin` console script.
-- Plan progress: The implementation covers skill management, subagents, self-improvement, CLI workspace behavior, and a dashboard showing jobs, result summaries, status, usage, and warnings.
+- Plan progress: The implementation covers skill management, subagents, self-improvement, CLI workspace behavior, a dashboard showing jobs, result summaries, status, usage, and warnings, and 57 OpenClaw skill reflection markers.
 
 ## Validation Evidence
 

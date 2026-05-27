@@ -24,6 +24,8 @@ compatibility with their private internals.
   result summaries, status, usage, warnings, skills, agents, and job generation.
 - `skills/`: bundled starter skill set covering core, tools, development, creative,
   integrations, and product workflows.
+- `skills/openclaw-reflections/`: one lightweight capability marker per OpenClaw
+  upstream skill directory, generated from the referenced OpenClaw snapshot.
 
 ## Skill Precedence
 

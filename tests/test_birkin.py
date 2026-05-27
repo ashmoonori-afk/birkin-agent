@@ -35,6 +35,9 @@ class WorkspaceTest(unittest.TestCase):
         names = {skill.name for skill in discover_skills(workspace)}
         self.assertIn("self-improvement", names)
         self.assertIn("taskflow", names)
+        openclaw_names = {name for name in names if name.startswith("openclaw-")}
+        self.assertGreaterEqual(len(openclaw_names), 57)
+        self.assertIn("openclaw-github", openclaw_names)
         self.assertTrue((workspace.root / "scripts" / "birkin").exists())
         self.assertTrue((workspace.root / "scripts" / "birkin.ps1").exists())
 

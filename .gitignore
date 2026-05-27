@@ -7,6 +7,7 @@ __pycache__/
 .venv/
 venv/
 .remote-check/
+.refs/
 runs/*
 !runs/.gitkeep
 memory/*

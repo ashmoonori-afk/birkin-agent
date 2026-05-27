@@ -38,6 +38,10 @@ class WorkspaceTest(unittest.TestCase):
         openclaw_names = {name for name in names if name.startswith("openclaw-")}
         self.assertGreaterEqual(len(openclaw_names), 57)
         self.assertIn("openclaw-github", openclaw_names)
+        hermes_names = {name for name in names if name.startswith("hermes-")}
+        self.assertGreaterEqual(len(hermes_names), 90)
+        self.assertIn("hermes-test-driven-development", hermes_names)
+        self.assertIn("hermes-ascii-art", hermes_names)
         self.assertTrue((workspace.root / "scripts" / "birkin").exists())
         self.assertTrue((workspace.root / "scripts" / "birkin.ps1").exists())
 
@@ -48,6 +52,18 @@ class WorkspaceTest(unittest.TestCase):
         self.assertEqual(names, {"taskflow", "memory-recall", "documentation"})
         self.assertIn("<available_skills>", packet["prompt"])
         self.assertNotIn("shell-runtime", names)
+
+    def test_hermes_reflections_keep_source_metadata(self) -> None:
+        workspace = self.make_workspace()
+        records = {skill.name: skill for skill in discover_skills(workspace)}
+        tdd = records["hermes-test-driven-development"]
+        hermes = tdd.frontmatter["metadata"]["hermes"]
+        self.assertEqual(hermes["upstreamSkill"], "test-driven-development")
+        self.assertEqual(
+            hermes["upstreamPath"],
+            "skills/software-development/test-driven-development",
+        )
+        self.assertEqual(hermes["category"], "software-development")
 
     def test_run_agent_dry_run_writes_record(self) -> None:
         workspace = self.make_workspace()

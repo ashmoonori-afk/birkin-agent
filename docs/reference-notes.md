@@ -27,10 +27,12 @@ Reference snapshot:
 - Snapshot-style prompt packets for CLI subagent execution.
 - Web UI as an operator control surface, not a separate backend product.
 - Self-improvement loop based on run records, reviews, memory notes, and user corrections.
+- Hermes bundled skill coverage through 90 lightweight `hermes-<name>` reflection skills.
 - OpenClaw skill coverage through 57 lightweight `openclaw-<name>` reflection skills.
 
 ## Boundary
 
 This workspace reflects the referenced systems in a lightweight Python implementation.
-It does not vendor either upstream project, copy their full skill catalogs, or claim API
-compatibility with their private runtime internals.
+It does not vendor either upstream project or claim API compatibility with their private
+runtime internals. Reflection skills preserve source-linked capability intent, not full
+upstream implementations.

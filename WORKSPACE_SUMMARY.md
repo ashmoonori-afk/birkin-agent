@@ -17,18 +17,20 @@ CLI, and a local Web UI.
 - Web UI: `birkin web --port 8765`, serving a SaaS-style dashboard at `http://127.0.0.1:8765`.
 - Skill roots: `skills`, `.agents/skills`, `managed-skills`, `bundled-skills`.
 - Bundled native skills: 21 total; gated examples include Google Workspace and smart home.
+- Hermes reflections: 90 `hermes-<name>` capability marker skills from upstream commit `bb4703c761ea6687b6399aa2e61e0a08fabd3ca3`.
 - OpenClaw reflections: 57 `openclaw-<name>` capability marker skills from upstream commit `8d6b5997375890608a1bb46a08c1f5a819443d59`.
 - Default agents: planner, builder, reviewer, researcher, operator.
 
 ## Verification Snapshot
 
-- `py -m unittest discover -s tests`: 7 tests passed.
+- `PYTHONPATH=src; py -m unittest discover -s tests`: 8 tests passed.
 - `py -m compileall -q src tests`: passed.
-- `py -m birkin_agent doctor`: `ok`.
-- `py -m birkin_agent skills validate`: `ok`.
 - `.\scripts\birkin.ps1 doctor`: `ok`.
+- `.\scripts\birkin.ps1 skills validate`: `ok`.
+- `.\scripts\birkin.ps1 skills list --json`: 168 skills total, including 90 Hermes and 57 OpenClaw reflections.
 - Editable install console command `.venv\Scripts\birkin.exe doctor`: `ok`.
 - Playwright Web UI check: dashboard title loaded, running/completed/warning/usage metrics rendered, Run generated a job record, no console errors.
+- Code review note: `reviews/2026-05-27-hermes-skills-readme-review.md`.
 
 ## Git Target
 

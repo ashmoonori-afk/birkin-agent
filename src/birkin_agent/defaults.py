@@ -132,9 +132,14 @@ exit $LASTEXITCODE
 }
 
 
-REFERENCE_NOTES = """# Reference Notes
+REFERENCE_NOTES = r"""# Reference Notes
 
 Scope date: 2026-05-27.
+
+Reference snapshot:
+
+- Hermes Agent commit: `bb4703c761ea6687b6399aa2e61e0a08fabd3ca3`
+- OpenClaw commit: `8d6b5997375890608a1bb46a08c1f5a819443d59`
 
 ## Sources Used
 
@@ -156,16 +161,19 @@ Scope date: 2026-05-27.
 - Snapshot-style prompt packets for CLI subagent execution.
 - Web UI as an operator control surface, not a separate backend product.
 - Self-improvement loop based on run records, reviews, memory notes, and user corrections.
+- Hermes bundled skill coverage through 90 lightweight `hermes-<name>` reflection skills.
+- OpenClaw skill coverage through 57 lightweight `openclaw-<name>` reflection skills.
 
 ## Boundary
 
 This workspace reflects the referenced systems in a lightweight Python implementation.
-It does not vendor either upstream project, copy their full skill catalogs, or claim API
-compatibility with their private runtime internals.
+It does not vendor either upstream project or claim API compatibility with their private
+runtime internals. Reflection skills preserve source-linked capability intent, not full
+upstream implementations.
 """
 
 
-ARCHITECTURE_DOC = """# Architecture
+ARCHITECTURE_DOC = r"""# Architecture
 
 Scope date: 2026-05-27.
 
@@ -175,15 +183,54 @@ agent-managed skill evolution, and OpenClaw as the reference model for skill pre
 gating, operator safety, and broad bundled skill coverage.
 
 Birkin is not a fork of either project. It does not vendor their code or claim runtime
-compatibility with their private runtime internals.
+compatibility with their private internals.
 
 ## Core Pieces
 
-- `src/birkin_agent/skills.py`: indexes AgentSkills-compatible `SKILL.md` folders.
-- `src/birkin_agent/agents.py`: builds subagent prompt packets and run records.
-- `src/birkin_agent/improve.py`: records lessons and manages approved skill patches.
-- `src/birkin_agent/web.py`: serves the local operator Web UI.
-- `skills/`: bundled starter skill set.
+- `src/birkin_agent/skills.py`: indexes AgentSkills-compatible `SKILL.md` folders,
+  frontmatter, precedence, enablement, and OpenClaw-style gates.
+- `src/birkin_agent/agents.py`: builds subagent prompt packets with per-agent skill
+  allowlists and writes auditable run records.
+- `src/birkin_agent/improve.py`: records lessons, gathers signals, creates pending
+  skill improvement proposals, and applies approved patches.
+- `src/birkin_agent/dashboard.py`: turns run records, usage, warnings, agents, and
+  skills into dashboard API data.
+- `src/birkin_agent/web.py`: serves a local operator dashboard with running jobs,
+  result summaries, status, usage, warnings, skills, agents, and job generation.
+- `skills/`: bundled starter skill set covering core, tools, development, creative,
+  integrations, and product workflows.
+- `skills/hermes-reflections/`: one lightweight capability marker per Hermes bundled
+  upstream skill directory, generated from the referenced Hermes snapshot.
+- `skills/openclaw-reflections/`: one lightweight capability marker per OpenClaw
+  upstream skill directory, generated from the referenced OpenClaw snapshot.
+
+## Skill Precedence
+
+Configured roots are checked in order:
+
+1. `skills`
+2. `.agents/skills`
+3. `managed-skills`
+4. `bundled-skills`
+
+The first skill with a given `name` wins. Later duplicates are reported as shadowed.
+
+## Safety Model
+
+- Default runner is `dry-run`.
+- Real CLI execution requires an explicit argv command in `birkin.json`.
+- Skills are procedural memory, not executable trust.
+- Web UI escapes workspace-provided table values before rendering.
+- Runtime artifacts live under ignored workspace directories.
+
+## Verification Gates
+
+```sh
+python -m unittest discover -s tests
+python -m compileall -q src tests
+python -m birkin_agent doctor
+python -m birkin_agent skills validate
+```
 """
 
 
@@ -241,7 +288,18 @@ DEFAULT_DOC_FILES = {
 }
 
 
-README = r"""# Birkin Agent
+README = r"""```text
+██████╗ ██╗██████╗ ██╗  ██╗██╗███╗   ██╗
+██╔══██╗██║██╔══██╗██║ ██╔╝██║████╗  ██║
+██████╔╝██║██████╔╝█████╔╝ ██║██╔██╗ ██║
+██╔══██╗██║██╔══██╗██╔═██╗ ██║██║╚██╗██║
+██████╔╝██║██║  ██║██║  ██╗██║██║ ╚████║
+╚═════╝ ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝
+```
+
+**The AI agent that actually remembers you.**
+
+# Birkin Agent
 
 Birkin is a lightweight Python agent workspace inspired by the direction of
 [Hermes Agent](https://github.com/NousResearch/hermes-agent) and
@@ -260,6 +318,7 @@ implementation small and inspectable.
 | Area | Birkin behavior |
 | --- | --- |
 | Skills | Indexes AgentSkills-style `SKILL.md` folders with metadata, precedence, validation, and gating. |
+| Hermes coverage | Reflects all 90 Hermes bundled skill directories as lightweight `hermes-<name>` capability markers. |
 | OpenClaw coverage | Reflects all 57 OpenClaw upstream skill directories as lightweight `openclaw-<name>` capability markers. |
 | Subagents | Builds role-scoped prompt packets for planner, builder, reviewer, researcher, and operator agents. |
 | Self-improvement | Records lessons, proposes skill patches, and applies approved improvements. |
@@ -374,9 +433,11 @@ Birkin ships with:
 - Tool skills for filesystem, shell, web research, browser automation, scheduling, and messaging gateways.
 - Development skills for code review, GitHub, documentation, data analysis, and security audit.
 - Creative and integration skills.
+- 90 Hermes bundled skill reflections under `skills/hermes-reflections/`.
 - 57 OpenClaw reflection skills under `skills/openclaw-reflections/`.
 
-See [OpenClaw Skill Reflection Map](docs/openclaw-skill-map.md).
+See [Hermes Skill Reflection Map](docs/hermes-skill-map.md) and
+[OpenClaw Skill Reflection Map](docs/openclaw-skill-map.md).
 
 ## Runner Model
 
@@ -411,6 +472,7 @@ Keep runner commands as argv arrays. Do not put shell pipelines or secrets in `b
 - Inspectable: run records, skill files, and proposals are plain text or JSON.
 - Safer by default: dry-run runner, explicit `--execute`, and proposal-mode improvement.
 - Portable: macOS/Linux shell script, Windows PowerShell script, and editable Python install.
+- Hermes-aware: all bundled Hermes skill directories are represented as Birkin capability markers.
 - OpenClaw-aware: every upstream OpenClaw skill directory is represented as a Birkin capability marker.
 - Dashboard-first operations: job status, result summaries, usage, and warnings are visible immediately.
 
@@ -418,6 +480,7 @@ Keep runner commands as argv arrays. Do not put shell pipelines or secrets in `b
 
 - Not a drop-in Hermes replacement: no built-in messaging gateway, provider setup wizard, Honcho user model, or cloud terminal backend.
 - Not a drop-in OpenClaw replacement: reflection skills are routing markers unless a local adapter is implemented.
+- Hermes and OpenClaw reflections are not vendored upstream implementations; they are source-linked capability maps.
 - No model calls by default: you must configure a runner command before real model execution.
 - Usage is estimated from prompt text and run output, not provider billing APIs.
 - macOS script is included, but this repository was initially verified from Windows; macOS should be tested on a real Mac before release claims beyond CLI portability.
@@ -428,6 +491,7 @@ Birkin was shaped by these upstream ideas:
 
 - Hermes README themes: self-improvement, skills, subagents, scheduled automation, model choice, and remote-friendly operation.
 - Hermes skills docs: `SKILL.md` as procedural memory with progressive disclosure.
+- Hermes `skills/`: 90 bundled skill directories reflected as Birkin capability markers.
 - OpenClaw README themes: local-first workspace, multi-agent routing, security defaults, channels, canvas, and skills.
 - OpenClaw `skills/`: 57 upstream skill directories reflected as Birkin capability markers.
 
@@ -444,15 +508,16 @@ birkin skills validate
 
 Current snapshot:
 
-- Unit tests: 7 passed.
+- Unit tests: 8 passed.
 - Dashboard smoke check: rendered job metrics, warnings, usage, and run action without console errors.
-- Code review note: [reviews/2026-05-27-code-review.md](reviews/2026-05-27-code-review.md).
+- Code review note: [reviews/2026-05-27-hermes-skills-readme-review.md](reviews/2026-05-27-hermes-skills-readme-review.md).
 
 ## More
 
 - [Architecture](docs/architecture.md)
 - [Dashboard](docs/dashboard.md)
 - [macOS usage](docs/macos.md)
+- [Hermes skill map](docs/hermes-skill-map.md)
 - [OpenClaw skill map](docs/openclaw-skill-map.md)
 - [Reference notes](docs/reference-notes.md)
 """

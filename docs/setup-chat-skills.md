@@ -37,6 +37,21 @@ The dashboard includes a `Chat` tab. The default `chat` agent uses these skills:
 - `taskflow`
 - `documentation`
 
+Hermes-style interactive terminal chat:
+
+```sh
+birkin-codex
+```
+
+Interactive commands:
+
+- `/setup` shows readiness checks.
+- `/skills` shows skill configuration checks.
+- `/model ID` switches the model profile for the current chat.
+- `/execute on` allows the selected runner to execute.
+- `/execute off` returns to packet-only safe mode.
+- `/exit` leaves chat.
+
 Packet-only chat:
 
 ```sh

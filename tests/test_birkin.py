@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import io
 import json
 from pathlib import Path
 import shutil
@@ -8,12 +9,14 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 from urllib.request import Request, urlopen
 
 from birkin_agent.agents import build_packet, run_agent, validate_agents
 from birkin_agent.api import api_rows, validate_api
 from birkin_agent.auth import auth_rows, run_auth_command, validate_auth
 from birkin_agent.chat import run_chat
+from birkin_agent.cli import main as cli_main
 from birkin_agent.dashboard import dashboard_data
 from birkin_agent.gateway import GatewayHandler
 from birkin_agent.improve import append_lesson, apply_improvement, propose_improvement
@@ -54,6 +57,8 @@ class WorkspaceTest(unittest.TestCase):
         self.assertTrue((workspace.root / "scripts" / "birkin-codex.ps1").exists())
         self.assertTrue((workspace.root / "scripts" / "birkin").exists())
         self.assertTrue((workspace.root / "scripts" / "birkin.ps1").exists())
+        self.assertTrue((workspace.root / "scripts" / "setup").exists())
+        self.assertTrue((workspace.root / "scripts" / "setup.ps1").exists())
 
     def test_agent_packet_uses_final_skill_allowlist(self) -> None:
         workspace = self.make_workspace()
@@ -235,6 +240,19 @@ class WorkspaceTest(unittest.TestCase):
         self.assertEqual(payload["status"], "packet-only")
         self.assertIn("Prompt packet built", payload["reply"])
         self.assertTrue(Path(payload["record"]).exists())
+
+    def test_cli_without_args_opens_interactive_chat(self) -> None:
+        workspace = self.make_workspace()
+        with (
+            patch("birkin_agent.cli.ws", return_value=workspace),
+            patch("builtins.input", side_effect=["/exit"]),
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+        ):
+            self.assertEqual(cli_main([]), 0)
+        output = stdout.getvalue()
+        self.assertIn("Birkin Codex", output)
+        self.assertIn("Commands: /help", output)
+        self.assertIn("bye", output)
 
     def test_dashboard_summarizes_jobs_usage_and_warnings(self) -> None:
         workspace = self.make_workspace()

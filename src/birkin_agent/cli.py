@@ -20,6 +20,12 @@ from .workspace import Workspace
 
 
 def main(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+    if not argv:
+        return cmd_chat_interactive(
+            argparse.Namespace(agent=None, model=None, provider=None, execute=False)
+        )
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
@@ -123,12 +129,13 @@ def build_parser() -> argparse.ArgumentParser:
     web.add_argument("--port", type=int, default=8765)
     web.set_defaults(func=cmd_web)
 
-    chat = sub.add_parser("chat", help="Send one message through the chat agent")
-    chat.add_argument("--message", required=True)
+    chat = sub.add_parser("chat", help="Send a message or open the interactive chat agent")
+    chat.add_argument("--message")
     chat.add_argument("--agent")
     chat.add_argument("--model")
     chat.add_argument("--provider")
     chat.add_argument("--execute", action="store_true")
+    chat.add_argument("--interactive", "-i", action="store_true")
     chat.add_argument("--json", action="store_true")
     chat.set_defaults(func=cmd_chat)
     return parser
@@ -580,6 +587,11 @@ def cmd_web(args: argparse.Namespace) -> int:
 
 
 def cmd_chat(args: argparse.Namespace) -> int:
+    if args.interactive or not args.message:
+        if args.json and not args.message:
+            print("error: --json chat requires --message", file=sys.stderr)
+            return 1
+        return cmd_chat_interactive(args)
     payload = run_chat(
         ws(),
         args.message,
@@ -594,3 +606,80 @@ def cmd_chat(args: argparse.Namespace) -> int:
         print(payload["reply"])
         print(f"record {payload['record']}")
     return 0 if payload["status"] in {"ok", "packet-only"} else 1
+
+
+def cmd_chat_interactive(args: argparse.Namespace) -> int:
+    workspace = ws()
+    agent_id = args.agent
+    model_name = args.model
+    provider_name = args.provider
+    execute = bool(args.execute)
+    history: list[dict[str, str]] = []
+
+    print("Birkin Codex")
+    print("Type a message to chat. Commands: /help, /setup, /skills, /model ID, /execute on|off, /exit")
+    print(f"agent={agent_id or 'chat'} model={model_name or 'default'} execute={'on' if execute else 'off'}")
+
+    while True:
+        try:
+            message = input("you> ").strip()
+        except EOFError:
+            print()
+            return 0
+        except KeyboardInterrupt:
+            print("\nbye")
+            return 0
+
+        if not message:
+            continue
+        lowered = message.lower()
+        if lowered in {"/exit", "/quit", "exit", "quit"}:
+            print("bye")
+            return 0
+        if lowered == "/help":
+            print("Commands:")
+            print("  /setup          show setup readiness")
+            print("  /skills         show skill configuration checks")
+            print("  /model ID       switch model profile for this chat")
+            print("  /execute on     allow the selected runner to execute")
+            print("  /execute off    packet-only safe mode")
+            print("  /exit           leave chat")
+            continue
+        if lowered == "/setup":
+            print_table(setup_rows(workspace), ["step", "status", "detail", "command"])
+            continue
+        if lowered == "/skills":
+            print_table(skill_config_rows(workspace), ["check", "status", "detail"])
+            continue
+        if lowered.startswith("/model "):
+            model_name = message.split(maxsplit=1)[1].strip()
+            print(f"model={model_name}")
+            continue
+        if lowered.startswith("/execute "):
+            value = message.split(maxsplit=1)[1].strip().lower()
+            if value not in {"on", "off"}:
+                print("usage: /execute on|off")
+                continue
+            execute = value == "on"
+            print(f"execute={'on' if execute else 'off'}")
+            continue
+
+        try:
+            payload = run_chat(
+                workspace,
+                message,
+                agent_id=agent_id,
+                model_name=model_name,
+                provider_name=provider_name,
+                execute=execute,
+                history=history,
+            )
+        except Exception as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            continue
+
+        reply = payload["reply"]
+        print(f"birkin> {reply}")
+        print(f"record {payload['record']}")
+        history.append({"role": "user", "content": message})
+        history.append({"role": "assistant", "content": reply})

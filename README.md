@@ -35,7 +35,7 @@ implementation small and inspectable.
 | API | Calls OpenAI-compatible chat completions endpoints when an API model profile is selected and executed. |
 | Gateway | Serves a local machine-facing HTTP gateway for status, auth, model, API, and run operations. |
 | Setup | Reports Hermes-style readiness across workspace, models, auth, API, gateway, skills, agents, and chat. |
-| Chat | Provides a dashboard chat tab and `birkin-codex chat` command backed by the configured agent/model system. |
+| Chat | Provides a dashboard chat tab, one-shot `birkin-codex chat`, and Hermes-style `birkin-codex` interactive chat. |
 | Subagents | Builds role-scoped prompt packets for planner, builder, reviewer, researcher, and operator agents. |
 | Self-improvement | Records lessons, proposes skill patches, and applies approved improvements. |
 | CLI | Runs as `birkin-codex` after install, `python -m birkin_agent`, `scripts/birkin-codex`, or `scripts/birkin-codex.ps1`. `birkin` remains a compatibility alias. |
@@ -64,10 +64,10 @@ Birkin takes the parts that are useful for a small agent workspace:
 ```sh
 git clone https://github.com/ashmoonori-afk/birkin-agent.git
 cd birkin-agent
-./scripts/birkin-codex doctor
-./scripts/birkin-codex skills list
-./scripts/birkin-codex agents run planner --task "Plan the next release"
-./scripts/birkin-codex web --port 8765
+./scripts/setup
+source .venv/bin/activate
+birkin-codex setup
+birkin-codex
 ```
 
 ### Windows PowerShell
@@ -75,13 +75,19 @@ cd birkin-agent
 ```powershell
 git clone https://github.com/ashmoonori-afk/birkin-agent.git
 cd birkin-agent
-.\scripts\birkin-codex.ps1 doctor
-.\scripts\birkin-codex.ps1 skills list
-.\scripts\birkin-codex.ps1 agents run planner --task "Plan the next release"
-.\scripts\birkin-codex.ps1 web --port 8765
+.\scripts\setup.ps1
+. .\.venv\Scripts\Activate.ps1
+birkin-codex setup
+birkin-codex
 ```
 
-Open the dashboard:
+Start the dashboard when you want the SaaS-style job and chat UI:
+
+```sh
+birkin-codex web --port 8765
+```
+
+Open:
 
 ```text
 http://127.0.0.1:8765
@@ -93,6 +99,7 @@ http://127.0.0.1:8765
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -e .
+birkin-codex
 birkin-codex doctor
 birkin-codex skills validate
 birkin-codex web --port 8765
@@ -103,6 +110,7 @@ On Windows, use `.venv\Scripts\activate` and then the same `pip install -e .` fl
 ## Core Commands
 
 ```sh
+birkin-codex
 birkin-codex doctor
 birkin-codex setup
 birkin-codex skills list

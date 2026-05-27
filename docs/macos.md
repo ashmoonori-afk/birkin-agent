@@ -23,6 +23,16 @@ cd birkin-agent
 
 Open `http://127.0.0.1:8765`.
 
+## Hermes-Style Setup
+
+```sh
+cd birkin-agent
+./scripts/setup
+source .venv/bin/activate
+birkin-codex setup
+birkin-codex
+```
+
 ## Editable Install
 
 ```sh
@@ -30,6 +40,7 @@ cd birkin-agent
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -e .
+birkin-codex
 birkin-codex doctor
 birkin-codex setup
 birkin-codex skills validate
@@ -85,5 +96,6 @@ birkin-codex gateway run --port 8770
 Chat through the default packet-only profile:
 
 ```sh
+birkin-codex
 birkin-codex chat --message "Summarize this workspace" --model packet
 ```

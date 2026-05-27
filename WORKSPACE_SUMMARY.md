@@ -11,7 +11,9 @@ local CLI/API model execution, a machine-facing gateway, and a local Web UI.
 ## Current State
 
 - Python package: `src/birkin_agent`.
-- Primary CLI entrypoint: `birkin-codex` via editable install, `scripts/birkin-codex`,
+- Primary CLI entrypoint: `birkin-codex` via editable install. With no arguments it opens
+  the Hermes-style interactive chat CLI.
+- Script entrypoints: `scripts/setup`, `scripts/setup.ps1`, `scripts/birkin-codex`,
   `scripts/birkin-codex.ps1`, or `python -m birkin_agent`.
 - Compatibility CLI alias: `birkin`.
 - Model selection: `birkin-codex model list`, `birkin-codex model use <profile>`, and
@@ -22,7 +24,8 @@ local CLI/API model execution, a machine-facing gateway, and a local Web UI.
 - Setup readiness: `birkin-codex setup` checks workspace, models, auth, API, gateway, skills, agents, and chat.
 - Skill config verification: `birkin-codex skills config` reports roots, discovered/enabled/gated counts,
   precedence, selection, disabled names, and Hermes/OpenClaw reflection coverage.
-- Chat: `birkin-codex chat --message ...` and dashboard `/api/chat` use the `chat` agent and normal run records.
+- Chat: `birkin-codex`, `birkin-codex chat --message ...`, and dashboard `/api/chat`
+  use the `chat` agent and normal run records.
 - macOS/Linux script: `scripts/birkin-codex`.
 - Windows script: `scripts/birkin-codex.ps1`.
 - Web UI: `birkin-codex web --port 8765`, serving a SaaS-style dashboard with jobs, result summaries,
@@ -37,8 +40,10 @@ local CLI/API model execution, a machine-facing gateway, and a local Web UI.
 
 ## Verification Snapshot
 
-- `PYTHONPATH=src; py -m unittest discover -s tests`: 15 tests passed.
+- `PYTHONPATH=src; py -m unittest discover -s tests`: 16 tests passed.
 - `py -m compileall -q src tests`: passed.
+- `scripts/setup.ps1 -SkipCheck`: installed editable package into `.venv` and created `.venv\Scripts\birkin-codex.exe`.
+- `birkin-codex` with `/exit` piped on stdin: opened the interactive chat CLI and exited cleanly.
 - `.\scripts\birkin-codex.ps1 doctor`: `ok` with warning that `OPENAI_API_KEY` is not set for `openai-compatible`.
 - `.\scripts\birkin-codex.ps1 skills validate`: `ok`.
 - `.\scripts\birkin-codex.ps1 setup --json`: completed with warning status because `OPENAI_API_KEY` is not set.

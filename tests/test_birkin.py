@@ -4,6 +4,7 @@ from http.server import ThreadingHTTPServer
 import json
 from pathlib import Path
 import shutil
+import sys
 import tempfile
 import threading
 import unittest
@@ -12,6 +13,7 @@ from urllib.request import Request, urlopen
 from birkin_agent.agents import build_packet, run_agent, validate_agents
 from birkin_agent.dashboard import dashboard_data
 from birkin_agent.improve import append_lesson, apply_improvement, propose_improvement
+from birkin_agent.models import render_model_command, resolve_model_profile, use_model_profile, validate_models
 from birkin_agent.skills import create_skill, discover_skills, validate_skills
 from birkin_agent.web import Handler
 from birkin_agent.workspace import Workspace
@@ -50,8 +52,54 @@ class WorkspaceTest(unittest.TestCase):
         packet = build_packet(workspace, "planner", "Plan a release")
         names = {skill["name"] for skill in packet["skills"]}
         self.assertEqual(names, {"taskflow", "memory-recall", "documentation"})
+        self.assertEqual(packet["model"]["id"], "packet")
+        self.assertEqual(packet["model"]["runner"], "dry-run")
         self.assertIn("<available_skills>", packet["prompt"])
         self.assertNotIn("shell-runtime", names)
+
+    def test_model_profiles_select_local_cli_templates(self) -> None:
+        workspace = self.make_workspace()
+        errors, warnings = validate_models(workspace)
+        self.assertEqual(errors, [])
+        self.assertEqual(warnings, [])
+        profile = resolve_model_profile(workspace, "codex-local")
+        self.assertEqual(profile.runner, "local-cli")
+        self.assertEqual(
+            render_model_command(profile.command, profile),
+            ["codex", "exec", "--model", "gpt-5.5", "-"],
+        )
+        use_model_profile(workspace, "codex-local")
+        packet = build_packet(workspace, "builder", "Build a feature")
+        self.assertEqual(packet["model"]["id"], "codex-local")
+        self.assertEqual(packet["agent"]["runner"], "local-cli")
+
+    def test_model_profile_executes_local_cli_command(self) -> None:
+        workspace = self.make_workspace()
+        workspace.config["models"]["profiles"]["test-local"] = {
+            "provider": "test-cli",
+            "model": "unit-model",
+            "runner": "local-cli",
+            "command": [
+                sys.executable,
+                "-c",
+                "import sys; data=sys.stdin.read(); print('model-output:' + str(len(data)))",
+            ],
+            "timeoutSeconds": 30,
+            "description": "Unit-test local CLI model.",
+        }
+        workspace.save_config()
+        record, result = run_agent(
+            workspace,
+            "planner",
+            "Plan a release",
+            model_name="test-local",
+            execute=True,
+        )
+        self.assertEqual(result["returncode"], 0)
+        self.assertIn("model-output:", result["stdout"])
+        payload = json.loads(record.read_text(encoding="utf-8"))
+        self.assertEqual(payload["status"], "ok")
+        self.assertEqual(payload["model"]["id"], "test-local")
 
     def test_hermes_reflections_keep_source_metadata(self) -> None:
         workspace = self.make_workspace()
@@ -72,6 +120,7 @@ class WorkspaceTest(unittest.TestCase):
         self.assertFalse(result["executed"])
         payload = json.loads(record.read_text(encoding="utf-8"))
         self.assertEqual(payload["status"], "packet-only")
+        self.assertEqual(payload["model"]["id"], "packet")
         self.assertIn("summary", payload)
         self.assertGreater(payload["usage"]["estimatedTokens"], 0)
 
@@ -84,6 +133,8 @@ class WorkspaceTest(unittest.TestCase):
         self.assertIn("jobs", data)
         self.assertIn("warnings", data)
         self.assertIn("summary", data)
+        self.assertIn("models", data)
+        self.assertGreaterEqual(data["metrics"]["modelsTotal"], 3)
 
     def test_validate_agents_reports_missing_allowlist_skills(self) -> None:
         workspace = self.make_workspace()
@@ -128,8 +179,9 @@ class WorkspaceTest(unittest.TestCase):
         self.assertGreaterEqual(len(status["agents"]), 1)
         self.assertIn("metrics", status)
         self.assertIn("jobs", status)
+        self.assertIn("models", status)
 
-        body = json.dumps({"agent": "planner", "task": "Plan a release"}).encode("utf-8")
+        body = json.dumps({"agent": "planner", "model": "packet", "task": "Plan a release"}).encode("utf-8")
         request = Request(
             f"http://{host}:{port}/api/run",
             data=body,

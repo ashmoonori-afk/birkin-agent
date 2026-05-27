@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 from typing import Any
 
+from .models import render_model_command, resolve_model_profile
 from .skills import SkillRecord, discover_skills, parse_frontmatter
 from .util import slugify, utc_stamp, write_json
 from .workspace import Workspace
@@ -15,6 +16,7 @@ class AgentRecord:
     id: str
     role: str
     runner: str
+    model: str | None
     skills: list[str] | None
     workspace: str
 
@@ -28,6 +30,7 @@ def list_agents(workspace: Workspace) -> list[AgentRecord]:
                 id=str(raw.get("id")),
                 role=str(raw.get("role", "")),
                 runner=str(raw.get("runner") or defaults.get("runner") or "dry-run"),
+                model=raw.get("model") or defaults.get("model"),
                 skills=raw.get("skills", defaults.get("skills")),
                 workspace=str(raw.get("workspace") or defaults.get("workspace") or "."),
             )
@@ -48,11 +51,12 @@ def add_agent(
     role: str,
     skills: list[str] | None,
     runner: str = "dry-run",
+    model: str | None = None,
 ) -> None:
     agents = workspace.config.setdefault("agents", {}).setdefault("list", [])
     if any(raw.get("id") == agent_id for raw in agents):
         raise FileExistsError(f"agent already exists: {agent_id}")
-    agents.append({"id": agent_id, "role": role, "skills": skills, "runner": runner})
+    agents.append({"id": agent_id, "role": role, "skills": skills, "runner": runner, "model": model})
     workspace.save_config()
 
 
@@ -107,16 +111,29 @@ def build_packet(
     agent_id: str,
     task: str,
     include_skill_bodies: bool = False,
+    model_name: str | None = None,
+    provider_name: str | None = None,
+    runner_name: str | None = None,
 ) -> dict[str, Any]:
     agent = get_agent(workspace, agent_id)
+    profile = resolve_model_profile(workspace, model_name or agent.model, provider_name)
+    runner_key = runner_name or profile.runner or agent.runner
     skills = select_skills(workspace, agent)
     packet = {
         "workspace": str(workspace.root),
         "agent": {
             "id": agent.id,
             "role": agent.role,
-            "runner": agent.runner,
+            "runner": runner_key,
+            "model": profile.id,
             "skillAllowlist": agent.skills,
+        },
+        "model": {
+            "id": profile.id,
+            "provider": profile.provider,
+            "model": profile.model,
+            "runner": runner_key,
+            "description": profile.description,
         },
         "task": task,
         "prompt": "\n\n".join(
@@ -160,6 +177,7 @@ def save_run_record(
             "timestamp": utc_stamp(),
             "agent": agent_id,
             "runner": runner,
+            "model": packet.get("model") or {},
             "task": task,
             "status": status,
             "summary": summary,
@@ -213,12 +231,21 @@ def run_agent(
     agent_id: str,
     task: str,
     runner_name: str | None = None,
+    model_name: str | None = None,
+    provider_name: str | None = None,
     include_skill_bodies: bool = False,
     execute: bool = False,
 ) -> tuple[Path, dict[str, Any]]:
-    packet = build_packet(workspace, agent_id, task, include_skill_bodies)
-    agent = get_agent(workspace, agent_id)
-    runner_key = runner_name or agent.runner
+    packet = build_packet(
+        workspace,
+        agent_id,
+        task,
+        include_skill_bodies,
+        model_name=model_name,
+        provider_name=provider_name,
+        runner_name=runner_name,
+    )
+    runner_key = str(packet.get("agent", {}).get("runner") or runner_name or "dry-run")
     runner = workspace.config.get("runners", {}).get(runner_key)
     if not runner:
         raise KeyError(f"runner not found: {runner_key}")
@@ -227,12 +254,19 @@ def run_agent(
         record = save_run_record(workspace, agent_id, task, runner_key, "packet-only", packet)
         return record, {"packet": packet, "executed": False}
 
-    command = runner.get("command")
+    profile = resolve_model_profile(
+        workspace,
+        str(packet.get("model", {}).get("id") or model_name or ""),
+        str(packet.get("model", {}).get("provider") or provider_name or ""),
+    )
+    command = profile.command or runner.get("command")
     if not isinstance(command, list) or not command:
-        raise ValueError(f"runner {runner_key} requires a non-empty argv list")
-    timeout = int(runner.get("timeoutSeconds") or 1800)
+        raise ValueError(
+            f"model {profile.id} or runner {runner_key} requires a non-empty argv list"
+        )
+    timeout = int(profile.timeout_seconds or runner.get("timeoutSeconds") or 1800)
     completed = subprocess.run(
-        [str(part) for part in command],
+        render_model_command([str(part) for part in command], profile),
         input=packet["prompt"],
         text=True,
         capture_output=True,
@@ -255,6 +289,7 @@ def agent_rows(workspace: Workspace) -> list[dict[str, str]]:
         {
             "id": agent.id,
             "runner": agent.runner,
+            "model": agent.model or "",
             "skills": "*" if agent.skills is None else ",".join(agent.skills),
             "role": agent.role,
         }
@@ -272,6 +307,11 @@ def validate_agents(workspace: Workspace) -> tuple[list[str], list[str]]:
             errors.append("agent missing id")
         if agent.runner not in workspace.config.get("runners", {}):
             errors.append(f"{agent.id}: runner not found: {agent.runner}")
+        if agent.model:
+            try:
+                resolve_model_profile(workspace, agent.model)
+            except KeyError:
+                errors.append(f"{agent.id}: model profile not found: {agent.model}")
         if agent.skills is None:
             continue
         for skill_name in agent.skills:

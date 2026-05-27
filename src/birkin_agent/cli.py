@@ -7,6 +7,7 @@ import sys
 
 from .agents import add_agent, agent_rows, build_packet, run_agent, validate_agents
 from .improve import append_lesson, apply_improvement, propose_improvement
+from .models import add_model_profile, model_rows, use_model_profile, validate_models
 from .skills import create_skill, discover_skills, skill_rows, validate_skills
 from .util import print_table
 from .web import serve
@@ -34,6 +35,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     doctor = sub.add_parser("doctor", help="Check workspace health")
     doctor.set_defaults(func=cmd_doctor)
+
+    add_model_parser(sub.add_parser("model", help="Select and configure model profiles"))
+    add_model_parser(sub.add_parser("models", help="Select and configure model profiles"))
 
     skills = sub.add_parser("skills", help="Manage skills")
     skills_sub = skills.add_subparsers(required=True)
@@ -66,16 +70,22 @@ def build_parser() -> argparse.ArgumentParser:
     agents_create.add_argument("--role", required=True)
     agents_create.add_argument("--skills", default=None, help="Comma-separated final allowlist. Omit for all.")
     agents_create.add_argument("--runner", default="dry-run")
+    agents_create.add_argument("--model")
     agents_create.set_defaults(func=cmd_agents_create)
     packet = agents_sub.add_parser("packet")
     packet.add_argument("id")
     packet.add_argument("--task", required=True)
+    packet.add_argument("--model")
+    packet.add_argument("--provider")
+    packet.add_argument("--runner")
     packet.add_argument("--include-skill-bodies", action="store_true")
     packet.set_defaults(func=cmd_agents_packet)
     run = agents_sub.add_parser("run")
     run.add_argument("id")
     run.add_argument("--task", required=True)
     run.add_argument("--runner")
+    run.add_argument("--model")
+    run.add_argument("--provider")
     run.add_argument("--execute", action="store_true")
     run.add_argument("--include-skill-bodies", action="store_true")
     run.set_defaults(func=cmd_agents_run)
@@ -103,6 +113,25 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def add_model_parser(parser: argparse.ArgumentParser) -> None:
+    model_sub = parser.add_subparsers(required=True)
+    model_list = model_sub.add_parser("list")
+    model_list.add_argument("--json", action="store_true")
+    model_list.set_defaults(func=cmd_models_list)
+    model_use = model_sub.add_parser("use")
+    model_use.add_argument("id")
+    model_use.set_defaults(func=cmd_models_use)
+    model_add = model_sub.add_parser("add")
+    model_add.add_argument("id")
+    model_add.add_argument("--provider", required=True)
+    model_add.add_argument("--model", required=True)
+    model_add.add_argument("--runner", default="local-cli")
+    model_add.add_argument("--command-json", default="[]")
+    model_add.add_argument("--timeout", type=int, default=1800)
+    model_add.add_argument("--description", default="")
+    model_add.set_defaults(func=cmd_models_add)
+
+
 def ws() -> Workspace:
     return Workspace.discover(Path.cwd())
 
@@ -119,10 +148,13 @@ def cmd_init(args: argparse.Namespace) -> int:
 def cmd_doctor(args: argparse.Namespace) -> int:
     workspace = ws()
     errors, warnings = workspace.doctor()
+    model_errors, model_warnings = validate_models(workspace)
     skill_errors, skill_warnings = validate_skills(workspace)
     agent_errors, agent_warnings = validate_agents(workspace)
+    errors.extend(model_errors)
     errors.extend(skill_errors)
     errors.extend(agent_errors)
+    warnings.extend(model_warnings)
     warnings.extend(skill_warnings)
     warnings.extend(agent_warnings)
     for warning in warnings:
@@ -132,6 +164,37 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     if errors:
         return 1
     print("ok")
+    return 0
+
+
+def cmd_models_list(args: argparse.Namespace) -> int:
+    workspace = ws()
+    rows = model_rows(workspace)
+    if args.json:
+        print(json.dumps(rows, indent=2, ensure_ascii=False))
+    else:
+        print_table(rows, ["id", "default", "provider", "model", "runner", "command", "description"])
+    return 0
+
+
+def cmd_models_use(args: argparse.Namespace) -> int:
+    use_model_profile(ws(), args.id)
+    print(f"model default {args.id}")
+    return 0
+
+
+def cmd_models_add(args: argparse.Namespace) -> int:
+    add_model_profile(
+        ws(),
+        args.id,
+        args.provider,
+        args.model,
+        args.runner,
+        args.command_json,
+        args.timeout,
+        args.description,
+    )
+    print(f"created model {args.id}")
     return 0
 
 
@@ -209,18 +272,26 @@ def parse_skill_arg(value: str | None) -> list[str] | None:
 
 
 def cmd_agents_list(args: argparse.Namespace) -> int:
-    print_table(agent_rows(ws()), ["id", "runner", "skills", "role"])
+    print_table(agent_rows(ws()), ["id", "runner", "model", "skills", "role"])
     return 0
 
 
 def cmd_agents_create(args: argparse.Namespace) -> int:
-    add_agent(ws(), args.id, args.role, parse_skill_arg(args.skills), args.runner)
+    add_agent(ws(), args.id, args.role, parse_skill_arg(args.skills), args.runner, args.model)
     print(f"created {args.id}")
     return 0
 
 
 def cmd_agents_packet(args: argparse.Namespace) -> int:
-    packet = build_packet(ws(), args.id, args.task, args.include_skill_bodies)
+    packet = build_packet(
+        ws(),
+        args.id,
+        args.task,
+        args.include_skill_bodies,
+        model_name=args.model,
+        provider_name=args.provider,
+        runner_name=args.runner,
+    )
     print(json.dumps(packet, indent=2, ensure_ascii=False))
     return 0
 
@@ -231,6 +302,8 @@ def cmd_agents_run(args: argparse.Namespace) -> int:
         args.id,
         args.task,
         runner_name=args.runner,
+        model_name=args.model,
+        provider_name=args.provider,
         include_skill_bodies=args.include_skill_bodies,
         execute=args.execute,
     )

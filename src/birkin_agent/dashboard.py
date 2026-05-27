@@ -6,6 +6,7 @@ from typing import Any
 
 from .agents import agent_rows, validate_agents
 from .improve import collect_signals
+from .models import model_rows, validate_models
 from .skills import discover_skills, skill_rows, validate_skills
 from .workspace import Workspace
 
@@ -61,6 +62,18 @@ def read_run(path: Path) -> dict[str, Any] | None:
         return None
 
 
+def model_label(value: object) -> str:
+    if not isinstance(value, dict):
+        return ""
+    return str(value.get("id") or value.get("model") or "")
+
+
+def provider_label(value: object) -> str:
+    if not isinstance(value, dict):
+        return ""
+    return str(value.get("provider") or "")
+
+
 def list_jobs(workspace: Workspace, limit: int = 50) -> list[dict[str, Any]]:
     jobs: list[dict[str, Any]] = []
     runs_root = workspace.rel("runs")
@@ -78,6 +91,8 @@ def list_jobs(workspace: Workspace, limit: int = 50) -> list[dict[str, Any]]:
                 "id": path.stem,
                 "agent": str(payload.get("agent") or packet.get("agent", {}).get("id") or ""),
                 "runner": str(payload.get("runner") or packet.get("agent", {}).get("runner") or ""),
+                "model": model_label(payload.get("model") or packet.get("model") or {}),
+                "provider": provider_label(payload.get("model") or packet.get("model") or {}),
                 "task": str(payload.get("task") or packet.get("task") or ""),
                 "status": status,
                 "timestamp": str(payload.get("timestamp") or ""),
@@ -93,11 +108,14 @@ def list_jobs(workspace: Workspace, limit: int = 50) -> list[dict[str, Any]]:
 
 def dashboard_data(workspace: Workspace) -> dict[str, Any]:
     doctor_errors, doctor_warnings = workspace.doctor()
+    model_errors, model_warnings = validate_models(workspace)
     skill_errors, skill_warnings = validate_skills(workspace)
     agent_errors, agent_warnings = validate_agents(workspace)
     warnings = warning_rows(
         doctor_errors,
         doctor_warnings,
+        model_errors,
+        model_warnings,
         skill_errors,
         skill_warnings,
         agent_errors,
@@ -117,6 +135,7 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
     usage = aggregate_usage(jobs)
     skills = skill_rows(workspace)
     agents = agent_rows(workspace)
+    models = model_rows(workspace)
     signals = collect_signals(workspace)
     return {
         "root": str(workspace.root),
@@ -127,6 +146,7 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
             "skillsEnabled": sum(1 for row in skills if row["enabled"] == "yes"),
             "skillsTotal": len(skills),
             "agentsTotal": len(agents),
+            "modelsTotal": len(models),
             "warningCount": len(warnings),
             "signals": len(signals),
         },
@@ -135,6 +155,7 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
         "warnings": warnings,
         "skills": skills,
         "agents": agents,
+        "models": models,
         "signals": signals,
         "summary": workspace_summary(jobs, warnings, usage),
     }
@@ -143,6 +164,8 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
 def warning_rows(
     doctor_errors: list[str],
     doctor_warnings: list[str],
+    model_errors: list[str],
+    model_warnings: list[str],
     skill_errors: list[str],
     skill_warnings: list[str],
     agent_errors: list[str],
@@ -152,6 +175,8 @@ def warning_rows(
     for source, severity, values in [
         ("workspace", "critical", doctor_errors),
         ("workspace", "warning", doctor_warnings),
+        ("models", "critical", model_errors),
+        ("models", "warning", model_warnings),
         ("skills", "critical", skill_errors),
         ("skills", "warning", skill_warnings),
         ("agents", "critical", agent_errors),

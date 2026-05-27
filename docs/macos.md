@@ -37,24 +37,23 @@ birkin web --port 8765
 
 ## Local CLI Runner
 
-Birkin does not call a model by default. To connect a local CLI, edit `birkin.json`:
-
-```json
-{
-  "runners": {
-    "local-cli": {
-      "type": "command",
-      "command": ["codex", "exec", "-"],
-      "timeoutSeconds": 1800
-    }
-  }
-}
-```
-
-Then run:
+Birkin does not call a model by default. To connect a local CLI, choose or add a
+model profile:
 
 ```sh
-birkin agents run builder --runner local-cli --execute --task "Implement the change"
+birkin model list
+birkin model use codex-local
+birkin agents run builder --model codex-local --execute --task "Implement the change"
+```
+
+To add a custom local CLI profile:
+
+```sh
+birkin model add my-local \
+  --provider local-cli \
+  --model local-model \
+  --runner local-cli \
+  --command-json '["my-model-cli","--model","{model}","-"]'
 ```
 
 Keep the command as an argv array. Do not put shell pipelines or secrets in this config.

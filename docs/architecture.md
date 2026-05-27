@@ -16,6 +16,8 @@ compatibility with their private internals.
   frontmatter, precedence, enablement, and OpenClaw-style gates.
 - `src/birkin_agent/agents.py`: builds subagent prompt packets with per-agent skill
   allowlists and writes auditable run records.
+- `src/birkin_agent/models.py`: resolves Hermes-style model profiles, local CLI
+  command templates, defaults, validation, and per-run overrides.
 - `src/birkin_agent/improve.py`: records lessons, gathers signals, creates pending
   skill improvement proposals, and applies approved patches.
 - `src/birkin_agent/dashboard.py`: turns run records, usage, warnings, agents, and
@@ -43,7 +45,9 @@ The first skill with a given `name` wins. Later duplicates are reported as shado
 ## Safety Model
 
 - Default runner is `dry-run`.
-- Real CLI execution requires an explicit argv command in `birkin.json`.
+- Default model profile is `packet`, which never calls an external model.
+- Real CLI execution requires an explicit model profile command in `birkin.json`
+  and `--execute` on the run command.
 - Skills are procedural memory, not executable trust.
 - Web UI escapes workspace-provided table values before rendering.
 - Runtime artifacts live under ignored workspace directories.

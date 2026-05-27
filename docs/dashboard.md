@@ -17,7 +17,8 @@ Open `http://127.0.0.1:8765`.
 - Estimated usage from job prompt packets.
 - Running jobs.
 - Completed and failed job counts.
-- Recent job results with status, agent, task, result summary, usage, and timestamp.
+- Recent job results with status, agent, model, task, result summary, usage, and timestamp.
+- Model profile count and a model selector for new jobs.
 - Warnings in a separate panel.
 - A job creation form that writes a dry-run record by default.
 
@@ -27,11 +28,11 @@ The dashboard reads:
 
 - `runs/*.json` for job history, summaries, status, and usage.
 - `skills/**/SKILL.md` for skill status and gating warnings.
-- `birkin.json` for agents, runners, and allowlists.
+- `birkin.json` for agents, models, runners, and allowlists.
 - `memory/`, `reviews/`, and `runs/` for improvement signals.
 
 ## Warning Model
 
 Warnings are separate from job results. They include workspace doctor warnings, skill
-validation warnings, agent allowlist warnings, and gated skills such as missing
-environment variables or missing config.
+validation warnings, model profile warnings, agent allowlist warnings, and gated skills
+such as missing environment variables or missing config.

@@ -19,6 +19,7 @@ DEFAULT_CONFIG = {
         "defaults": {
             "workspace": ".",
             "runner": "dry-run",
+            "model": None,
             "skills": None,
             "sandbox": {"mode": "workspace-only"},
         },
@@ -62,6 +63,35 @@ DEFAULT_CONFIG = {
             "description": "Optional command adapter. Provide an argv list such as ['codex', 'exec', '-'].",
         },
     },
+    "models": {
+        "default": "packet",
+        "profiles": {
+            "packet": {
+                "provider": "packet",
+                "model": "packet-only",
+                "runner": "dry-run",
+                "command": [],
+                "timeoutSeconds": 1800,
+                "description": "Build prompt packets and run records without calling a model.",
+            },
+            "codex-local": {
+                "provider": "openai-codex-cli",
+                "model": "gpt-5.5",
+                "runner": "local-cli",
+                "command": ["codex", "exec", "--model", "{model}", "-"],
+                "timeoutSeconds": 1800,
+                "description": "Local Codex CLI profile. Requires `codex` on PATH and a valid local login.",
+            },
+            "custom-local": {
+                "provider": "local-cli",
+                "model": "local",
+                "runner": "local-cli",
+                "command": [],
+                "timeoutSeconds": 1800,
+                "description": "Template profile for any local model CLI. Fill command with argv strings.",
+            },
+        },
+    },
     "improvement": {
         "mode": "proposal",
         "sources": ["runs", "reviews", "memory"],
@@ -89,9 +119,9 @@ and auditable run records over heavyweight services.
 """,
     "TOOLS.md": """# Tool Policy
 
-The default runner is `dry-run`; it generates a prompt packet and run record. Configure
-`runners.local-cli.command` in `birkin.json` before allowing a subagent to call an external
-model CLI. Keep runner commands as argv arrays, not shell strings.
+The default model profile is `packet`; it generates a prompt packet and run record.
+Configure `models.profiles.<id>.command` in `birkin.json` before allowing a subagent
+to call an external model CLI. Keep runner commands as argv arrays, not shell strings.
 """,
 }
 
@@ -144,6 +174,7 @@ Reference snapshot:
 ## Sources Used
 
 - Hermes Agent repository: https://github.com/NousResearch/hermes-agent
+- Hermes CLI commands documentation: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/reference/cli-commands.md
 - Hermes skills documentation: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/skills.md
 - Hermes bundled skills catalog: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/reference/skills-catalog.md
 - OpenClaw repository: https://github.com/openclaw/openclaw
@@ -158,6 +189,7 @@ Reference snapshot:
 - Skill precedence with workspace roots before lower-priority roots.
 - Skill gating by platform, environment variables, and required binaries.
 - Per-agent skill allowlists.
+- Model selection through configured provider/model profiles and per-run overrides.
 - Snapshot-style prompt packets for CLI subagent execution.
 - Web UI as an operator control surface, not a separate backend product.
 - Self-improvement loop based on run records, reviews, memory notes, and user corrections.
@@ -191,6 +223,8 @@ compatibility with their private internals.
   frontmatter, precedence, enablement, and OpenClaw-style gates.
 - `src/birkin_agent/agents.py`: builds subagent prompt packets with per-agent skill
   allowlists and writes auditable run records.
+- `src/birkin_agent/models.py`: resolves Hermes-style model profiles, local CLI
+  command templates, defaults, validation, and per-run overrides.
 - `src/birkin_agent/improve.py`: records lessons, gathers signals, creates pending
   skill improvement proposals, and applies approved patches.
 - `src/birkin_agent/dashboard.py`: turns run records, usage, warnings, agents, and
@@ -218,7 +252,9 @@ The first skill with a given `name` wins. Later duplicates are reported as shado
 ## Safety Model
 
 - Default runner is `dry-run`.
-- Real CLI execution requires an explicit argv command in `birkin.json`.
+- Default model profile is `packet`, which never calls an external model.
+- Real CLI execution requires an explicit model profile command in `birkin.json`
+  and `--execute` on the run command.
 - Skills are procedural memory, not executable trust.
 - Web UI escapes workspace-provided table values before rendering.
 - Runtime artifacts live under ignored workspace directories.
@@ -234,12 +270,18 @@ python -m birkin_agent skills validate
 """
 
 
-MACOS_DOC = """# macOS Usage
+MACOS_DOC = r"""# macOS Usage
 
 Scope date: 2026-05-27.
 
 Birkin is a Python workspace and does not require Windows-specific tooling. The default
 runtime uses only the Python standard library.
+
+## Requirements
+
+- macOS 12 or newer.
+- Python 3.11 or newer.
+- Git, only when committing or pulling remote work.
 
 ## Run Without Installing
 
@@ -252,10 +294,45 @@ cd birkin-agent
 ```
 
 Open `http://127.0.0.1:8765`.
+
+## Editable Install
+
+```sh
+cd birkin-agent
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -e .
+birkin doctor
+birkin skills validate
+birkin web --port 8765
+```
+
+## Local CLI Runner
+
+Birkin does not call a model by default. To connect a local CLI, choose or add a
+model profile:
+
+```sh
+birkin model list
+birkin model use codex-local
+birkin agents run builder --model codex-local --execute --task "Implement the change"
+```
+
+To add a custom local CLI profile:
+
+```sh
+birkin model add my-local \
+  --provider local-cli \
+  --model local-model \
+  --runner local-cli \
+  --command-json '["my-model-cli","--model","{model}","-"]'
+```
+
+Keep the command as an argv array. Do not put shell pipelines or secrets in this config.
 """
 
 
-DEFAULT_DASHBOARD_DOC = """# Dashboard
+DEFAULT_DASHBOARD_DOC = r"""# Dashboard
 
 Scope date: 2026-05-27.
 
@@ -274,9 +351,84 @@ Open `http://127.0.0.1:8765`.
 - Estimated usage from job prompt packets.
 - Running jobs.
 - Completed and failed job counts.
-- Recent job results with status, agent, task, result summary, usage, and timestamp.
+- Recent job results with status, agent, model, task, result summary, usage, and timestamp.
+- Model profile count and a model selector for new jobs.
 - Warnings in a separate panel.
 - A job creation form that writes a dry-run record by default.
+
+## Data Source
+
+The dashboard reads:
+
+- `runs/*.json` for job history, summaries, status, and usage.
+- `skills/**/SKILL.md` for skill status and gating warnings.
+- `birkin.json` for agents, models, runners, and allowlists.
+- `memory/`, `reviews/`, and `runs/` for improvement signals.
+
+## Warning Model
+
+Warnings are separate from job results. They include workspace doctor warnings, skill
+validation warnings, model profile warnings, agent allowlist warnings, and gated skills
+such as missing environment variables or missing config.
+"""
+
+
+MODEL_SELECTION_DOC = r"""# Model Selection
+
+Scope date: 2026-05-27.
+
+Birkin uses model profiles to keep model choice separate from agent roles. The default
+profile is `packet`, which never calls an external model.
+
+## Commands
+
+```sh
+birkin model list
+birkin model use packet
+birkin model use codex-local
+birkin agents run builder --model codex-local --execute --task "Implement the change"
+```
+
+`birkin models` is an alias for `birkin model`.
+
+## Local CLI Profiles
+
+Profiles live in `birkin.json` under `models.profiles`. A profile can define a local
+CLI argv template. The placeholders `{model}`, `{provider}`, and `{profile}` are replaced
+at run time.
+
+```json
+{
+  "models": {
+    "default": "packet",
+    "profiles": {
+      "codex-local": {
+        "provider": "openai-codex-cli",
+        "model": "gpt-5.5",
+        "runner": "local-cli",
+        "command": ["codex", "exec", "--model", "{model}", "-"],
+        "timeoutSeconds": 1800
+      }
+    }
+  }
+}
+```
+
+Add a custom profile without editing JSON by hand:
+
+```sh
+birkin model add my-local \
+  --provider local-cli \
+  --model local-model \
+  --runner local-cli \
+  --command-json '["my-model-cli","--model","{model}","-"]'
+```
+
+## Safety
+
+- Model profiles do not execute unless `birkin agents run --execute` is used.
+- Commands are argv arrays, not shell strings.
+- Secrets should stay in the local CLI's own auth store or environment, not in `birkin.json`.
 """
 
 
@@ -285,6 +437,7 @@ DEFAULT_DOC_FILES = {
     "docs/architecture.md": ARCHITECTURE_DOC,
     "docs/dashboard.md": DEFAULT_DASHBOARD_DOC,
     "docs/macos.md": MACOS_DOC,
+    "docs/model-selection.md": MODEL_SELECTION_DOC,
 }
 
 
@@ -320,6 +473,7 @@ implementation small and inspectable.
 | Skills | Indexes AgentSkills-style `SKILL.md` folders with metadata, precedence, validation, and gating. |
 | Hermes coverage | Reflects all 90 Hermes bundled skill directories as lightweight `hermes-<name>` capability markers. |
 | OpenClaw coverage | Reflects all 57 OpenClaw upstream skill directories as lightweight `openclaw-<name>` capability markers. |
+| Model selection | Provides Hermes-style model profiles for packet-only runs, Codex CLI, or any local CLI argv template. |
 | Subagents | Builds role-scoped prompt packets for planner, builder, reviewer, researcher, and operator agents. |
 | Self-improvement | Records lessons, proposes skill patches, and applies approved improvements. |
 | CLI | Runs as `birkin` after install, `python -m birkin_agent`, `scripts/birkin`, or `scripts/birkin.ps1`. |
@@ -391,9 +545,11 @@ birkin doctor
 birkin skills list
 birkin skills validate
 birkin skills create release-checklist --description "Review release readiness."
+birkin model list
+birkin model use codex-local
 birkin agents list
-birkin agents packet planner --task "Plan the work"
-birkin agents run builder --task "Prepare the implementation"
+birkin agents packet planner --model packet --task "Plan the work"
+birkin agents run builder --model codex-local --task "Prepare the implementation"
 birkin improve record --lesson "LESSON: Validate skills before running an agent." --skill skill-authoring
 birkin improve propose
 birkin web --port 8765
@@ -411,6 +567,7 @@ It shows:
 - Result summaries.
 - Status counts.
 - Estimated prompt usage.
+- Selectable model profiles.
 - Enabled and gated skills.
 - Agents and their skill allowlists.
 - Warnings in a separate panel.
@@ -439,32 +596,56 @@ Birkin ships with:
 See [Hermes Skill Reflection Map](docs/hermes-skill-map.md) and
 [OpenClaw Skill Reflection Map](docs/openclaw-skill-map.md).
 
-## Runner Model
+## Model and Runner Selection
 
-The default runner is `dry-run`. It writes a run record and prompt packet without calling
-a model.
+The default model profile is `packet`. It writes a run record and prompt packet without
+calling a model. This mirrors the Hermes split between terminal model setup and per-run
+model switching, but keeps the implementation local and inspectable.
 
-To connect a local model CLI, edit `birkin.json`:
+List and choose model profiles:
+
+```sh
+birkin model list
+birkin model use packet
+birkin model use codex-local
+```
+
+Run with an explicit model profile:
+
+```sh
+birkin agents run builder --model codex-local --execute --task "Implement the change"
+```
+
+Configure local CLI profiles in `birkin.json`:
 
 ```json
 {
-  "runners": {
-    "local-cli": {
-      "type": "command",
-      "command": ["codex", "exec", "-"],
-      "timeoutSeconds": 1800
+  "models": {
+    "default": "packet",
+    "profiles": {
+      "codex-local": {
+        "provider": "openai-codex-cli",
+        "model": "gpt-5.5",
+        "runner": "local-cli",
+        "command": ["codex", "exec", "--model", "{model}", "-"],
+        "timeoutSeconds": 1800
+      }
     }
   }
 }
 ```
 
-Then run:
+You can also add a profile from the local CLI:
 
 ```sh
-birkin agents run builder --runner local-cli --execute --task "Implement the change"
+birkin model add codex-fast \
+  --provider openai-codex-cli \
+  --model gpt-5.5 \
+  --runner local-cli \
+  --command-json '["codex","exec","--model","{model}","-"]'
 ```
 
-Keep runner commands as argv arrays. Do not put shell pipelines or secrets in `birkin.json`.
+Keep commands as argv arrays. Do not put shell pipelines or secrets in `birkin.json`.
 
 ## Advantages
 
@@ -472,6 +653,7 @@ Keep runner commands as argv arrays. Do not put shell pipelines or secrets in `b
 - Inspectable: run records, skill files, and proposals are plain text or JSON.
 - Safer by default: dry-run runner, explicit `--execute`, and proposal-mode improvement.
 - Portable: macOS/Linux shell script, Windows PowerShell script, and editable Python install.
+- Model-profile based: switch between packet-only, Codex CLI, or a custom local CLI without code changes.
 - Hermes-aware: all bundled Hermes skill directories are represented as Birkin capability markers.
 - OpenClaw-aware: every upstream OpenClaw skill directory is represented as a Birkin capability marker.
 - Dashboard-first operations: job status, result summaries, usage, and warnings are visible immediately.
@@ -481,7 +663,7 @@ Keep runner commands as argv arrays. Do not put shell pipelines or secrets in `b
 - Not a drop-in Hermes replacement: no built-in messaging gateway, provider setup wizard, Honcho user model, or cloud terminal backend.
 - Not a drop-in OpenClaw replacement: reflection skills are routing markers unless a local adapter is implemented.
 - Hermes and OpenClaw reflections are not vendored upstream implementations; they are source-linked capability maps.
-- No model calls by default: you must configure a runner command before real model execution.
+- No model calls by default: you must choose a local CLI model profile and execute explicitly before real model execution.
 - Usage is estimated from prompt text and run output, not provider billing APIs.
 - macOS script is included, but this repository was initially verified from Windows; macOS should be tested on a real Mac before release claims beyond CLI portability.
 
@@ -490,6 +672,7 @@ Keep runner commands as argv arrays. Do not put shell pipelines or secrets in `b
 Birkin was shaped by these upstream ideas:
 
 - Hermes README themes: self-improvement, skills, subagents, scheduled automation, model choice, and remote-friendly operation.
+- Hermes model docs: terminal model setup plus per-run model override, adapted here as local CLI profiles.
 - Hermes skills docs: `SKILL.md` as procedural memory with progressive disclosure.
 - Hermes `skills/`: 90 bundled skill directories reflected as Birkin capability markers.
 - OpenClaw README themes: local-first workspace, multi-agent routing, security defaults, channels, canvas, and skills.
@@ -508,15 +691,16 @@ birkin skills validate
 
 Current snapshot:
 
-- Unit tests: 8 passed.
+- Unit tests: 10 passed.
 - Dashboard smoke check: rendered job metrics, warnings, usage, and run action without console errors.
-- Code review note: [reviews/2026-05-27-hermes-skills-readme-review.md](reviews/2026-05-27-hermes-skills-readme-review.md).
+- Code review note: [reviews/2026-05-27-model-selection-review.md](reviews/2026-05-27-model-selection-review.md).
 
 ## More
 
 - [Architecture](docs/architecture.md)
 - [Dashboard](docs/dashboard.md)
 - [macOS usage](docs/macos.md)
+- [Model selection](docs/model-selection.md)
 - [Hermes skill map](docs/hermes-skill-map.md)
 - [OpenClaw skill map](docs/openclaw-skill-map.md)
 - [Reference notes](docs/reference-notes.md)

@@ -10,6 +10,7 @@ Reference snapshot:
 ## Sources Used
 
 - Hermes Agent repository: https://github.com/NousResearch/hermes-agent
+- Hermes CLI commands documentation: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/reference/cli-commands.md
 - Hermes skills documentation: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/skills.md
 - Hermes bundled skills catalog: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/reference/skills-catalog.md
 - OpenClaw repository: https://github.com/openclaw/openclaw
@@ -24,6 +25,7 @@ Reference snapshot:
 - Skill precedence with workspace roots before lower-priority roots.
 - Skill gating by platform, environment variables, and required binaries.
 - Per-agent skill allowlists.
+- Model selection through configured provider/model profiles and per-run overrides.
 - Snapshot-style prompt packets for CLI subagent execution.
 - Web UI as an operator control surface, not a separate backend product.
 - Self-improvement loop based on run records, reviews, memory notes, and user corrections.

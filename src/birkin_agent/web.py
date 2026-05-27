@@ -94,7 +94,7 @@ INDEX_HTML = """<!doctype html>
     .root { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
     .metrics {
       display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
+      grid-template-columns: repeat(6, minmax(0, 1fr));
       gap: 10px;
       margin-bottom: 14px;
     }
@@ -123,6 +123,7 @@ INDEX_HTML = """<!doctype html>
       font-size: 12px;
       text-align: left;
       vertical-align: top;
+      overflow-wrap: anywhere;
     }
     th { color: var(--muted); font-weight: 700; background: #f8fafc; }
     tr:last-child td { border-bottom: 0; }
@@ -201,6 +202,7 @@ INDEX_HTML = """<!doctype html>
     <nav>
       <button class="active" data-tab="dashboard">Dashboard</button>
       <button data-tab="jobs">Jobs</button>
+      <button data-tab="models">Models</button>
       <button data-tab="skills">Skills</button>
       <button data-tab="agents">Agents</button>
       <button data-tab="warnings">Warnings</button>
@@ -222,6 +224,7 @@ INDEX_HTML = """<!doctype html>
           <div class="metric"><div class="label">Completed</div><div class="value" id="metric-completed">0</div><div class="detail">ok or packet-only</div></div>
           <div class="metric"><div class="label">Failed</div><div class="value" id="metric-failed">0</div><div class="detail">needs review</div></div>
           <div class="metric"><div class="label">Warnings</div><div class="value" id="metric-warnings">0</div><div class="detail">shown separately</div></div>
+          <div class="metric"><div class="label">Models</div><div class="value" id="metric-models">0</div><div class="detail">selectable profiles</div></div>
           <div class="metric"><div class="label">Skills</div><div class="value" id="metric-skills">0</div><div class="detail" id="metric-skills-detail"></div></div>
         </div>
         <div class="dashboard-grid">
@@ -239,6 +242,7 @@ INDEX_HTML = """<!doctype html>
             <div class="panel">
               <h2>Create Job</h2>
               <div class="form-row"><label for="agent">Agent</label><select id="agent"></select></div>
+              <div class="form-row"><label for="model">Model</label><select id="model"></select></div>
               <div class="form-row"><label for="task">Task</label><textarea id="task">Plan a safe next step for this workspace.</textarea></div>
               <div class="actions"><button class="button" id="build">Run</button></div>
               <pre id="packet"></pre>
@@ -251,6 +255,7 @@ INDEX_HTML = """<!doctype html>
         </div>
       </section>
       <section id="jobs"><div class="panel"><h2>All Jobs</h2><table id="jobs-full-table"></table></div></section>
+      <section id="models"><div class="panel"><h2>Models</h2><table id="models-table"></table></div></section>
       <section id="skills"><div class="panel"><h2>Skills</h2><table id="skills-table"></table></div></section>
       <section id="agents"><div class="panel"><h2>Agents</h2><table id="agents-table"></table></div></section>
       <section id="warnings"><div class="panel"><h2>Warnings</h2><table id="warnings-full-table"></table></div></section>
@@ -304,6 +309,7 @@ INDEX_HTML = """<!doctype html>
       return [
         {key: "status", label: "Status"},
         {key: "agent", label: "Agent"},
+        {key: "model", label: "Model"},
         {key: "task", label: "Task"},
         {key: "summary", label: "Result Summary"},
         {key: "usage", label: "Usage"},
@@ -335,6 +341,7 @@ INDEX_HTML = """<!doctype html>
       document.querySelector("#metric-completed").textContent = d.metrics.completedJobs;
       document.querySelector("#metric-failed").textContent = d.metrics.failedJobs;
       document.querySelector("#metric-warnings").textContent = d.metrics.warningCount;
+      document.querySelector("#metric-models").textContent = d.metrics.modelsTotal;
       document.querySelector("#metric-skills").textContent = d.metrics.skillsEnabled;
       document.querySelector("#metric-skills-detail").textContent = `${d.metrics.skillsTotal} total`;
       renderUsage(d.usage);
@@ -347,6 +354,15 @@ INDEX_HTML = """<!doctype html>
       renderJobs(document.querySelector("#jobs-full-table"), d.jobs);
       renderWarnings(document.querySelector("#warnings-table"), d.warnings.slice(0, 8));
       renderWarnings(document.querySelector("#warnings-full-table"), d.warnings);
+      table(document.querySelector("#models-table"), d.models, [
+        {key: "id", label: "ID"},
+        {key: "default", label: "Default"},
+        {key: "provider", label: "Provider"},
+        {key: "model", label: "Model"},
+        {key: "runner", label: "Runner"},
+        {key: "command", label: "Command"},
+        {key: "description", label: "Description"}
+      ]);
       table(document.querySelector("#skills-table"), d.skills, [
         {key: "name", label: "Name"},
         {key: "enabled", label: "Enabled"},
@@ -357,6 +373,7 @@ INDEX_HTML = """<!doctype html>
       table(document.querySelector("#agents-table"), d.agents, [
         {key: "id", label: "ID"},
         {key: "runner", label: "Runner"},
+        {key: "model", label: "Model"},
         {key: "skills", label: "Skills"},
         {key: "role", label: "Role"}
       ]);
@@ -365,6 +382,13 @@ INDEX_HTML = """<!doctype html>
         const option = document.createElement("option");
         option.value = a.id;
         option.textContent = a.id;
+        return option;
+      }));
+      const modelSelect = document.querySelector("#model");
+      modelSelect.replaceChildren(...d.models.map(m => {
+        const option = document.createElement("option");
+        option.value = m.id;
+        option.textContent = m.default === "yes" ? `${m.id} (default)` : m.id;
         return option;
       }));
     }
@@ -379,7 +403,11 @@ INDEX_HTML = """<!doctype html>
       const res = await fetch("/api/run", {
         method: "POST",
         headers: {"content-type": "application/json"},
-        body: JSON.stringify({agent: document.querySelector("#agent").value, task: document.querySelector("#task").value})
+        body: JSON.stringify({
+          agent: document.querySelector("#agent").value,
+          model: document.querySelector("#model").value,
+          task: document.querySelector("#task").value
+        })
       });
       document.querySelector("#packet").textContent = JSON.stringify(await res.json(), null, 2);
       await load();
@@ -431,12 +459,21 @@ class Handler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/run":
             agent_id = str(payload.get("agent") or "").strip()
+            model = str(payload.get("model") or "").strip() or None
+            provider = str(payload.get("provider") or "").strip() or None
             task = str(payload.get("task") or "").strip()
             if not agent_id or not task:
                 self.send_json({"error": "agent and task are required"}, 400)
                 return
             try:
-                record, result = run_agent(self.workspace, agent_id, task, execute=False)
+                record, result = run_agent(
+                    self.workspace,
+                    agent_id,
+                    task,
+                    model_name=model,
+                    provider_name=provider,
+                    execute=False,
+                )
             except Exception as exc:
                 self.send_json({"error": str(exc)}, 400)
                 return

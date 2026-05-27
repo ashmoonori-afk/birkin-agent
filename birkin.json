@@ -26,6 +26,7 @@
     "defaults": {
       "workspace": ".",
       "runner": "dry-run",
+      "model": null,
       "skills": null,
       "sandbox": {
         "mode": "workspace-only"
@@ -79,6 +80,41 @@
         ]
       }
     ]
+  },
+  "models": {
+    "default": "packet",
+    "profiles": {
+      "packet": {
+        "provider": "packet",
+        "model": "packet-only",
+        "runner": "dry-run",
+        "command": [],
+        "timeoutSeconds": 1800,
+        "description": "Build prompt packets and run records without calling a model."
+      },
+      "codex-local": {
+        "provider": "openai-codex-cli",
+        "model": "gpt-5.5",
+        "runner": "local-cli",
+        "command": [
+          "codex",
+          "exec",
+          "--model",
+          "{model}",
+          "-"
+        ],
+        "timeoutSeconds": 1800,
+        "description": "Local Codex CLI profile. Requires `codex` on PATH and a valid local login."
+      },
+      "custom-local": {
+        "provider": "local-cli",
+        "model": "local",
+        "runner": "local-cli",
+        "command": [],
+        "timeoutSeconds": 1800,
+        "description": "Template profile for any local model CLI. Fill command with argv strings."
+      }
+    }
   },
   "runners": {
     "dry-run": {

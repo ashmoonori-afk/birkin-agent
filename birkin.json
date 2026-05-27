@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "workspace": {
+    "name": "birkin_codex",
+    "summary": "WORKSPACE_SUMMARY.md",
+    "promptFiles": [
+      "AGENTS.md",
+      "SOUL.md",
+      "TOOLS.md"
+    ]
+  },
+  "skills": {
+    "roots": [
+      "skills",
+      ".agents/skills",
+      "managed-skills",
+      "bundled-skills"
+    ],
+    "watch": true,
+    "watchDebounceMs": 250,
+    "enabled": null,
+    "disabled": [],
+    "allowSymlinkTargets": []
+  },
+  "agents": {
+    "defaults": {
+      "workspace": ".",
+      "runner": "dry-run",
+      "skills": null,
+      "sandbox": {
+        "mode": "workspace-only"
+      }
+    },
+    "list": [
+      {
+        "id": "planner",
+        "role": "Break ambiguous work into evidence-backed plans.",
+        "skills": [
+          "taskflow",
+          "memory-recall",
+          "documentation"
+        ]
+      },
+      {
+        "id": "builder",
+        "role": "Implement code and automation inside the workspace.",
+        "skills": [
+          "shell-runtime",
+          "filesystem",
+          "skill-authoring",
+          "data-analysis"
+        ]
+      },
+      {
+        "id": "reviewer",
+        "role": "Review code, plans, security, and progress before delivery.",
+        "skills": [
+          "code-review",
+          "skill-security-audit",
+          "documentation"
+        ]
+      },
+      {
+        "id": "researcher",
+        "role": "Collect cited evidence and prepare reusable notes.",
+        "skills": [
+          "web-research",
+          "browser-automation",
+          "documentation"
+        ]
+      },
+      {
+        "id": "operator",
+        "role": "Run recurring or channel-facing workflows with tight policy.",
+        "skills": [
+          "scheduling",
+          "messaging-gateway",
+          "subagent-orchestration"
+        ]
+      }
+    ]
+  },
+  "runners": {
+    "dry-run": {
+      "type": "packet",
+      "description": "Build the prompt packet and save a run record without calling a model."
+    },
+    "local-cli": {
+      "type": "command",
+      "command": [],
+      "timeoutSeconds": 1800,
+      "description": "Optional command adapter. Provide an argv list such as ['codex', 'exec', '-']."
+    }
+  },
+  "improvement": {
+    "mode": "proposal",
+    "sources": [
+      "runs",
+      "reviews",
+      "memory"
+    ],
+    "signalPrefixes": [
+      "LESSON:",
+      "USER_CORRECTION:",
+      "FIXME:",
+      "TODO(skill):",
+      "FAILED:"
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+[project]
+name = "birkin-agent"
+version = "0.1.0"
+description = "Lightweight Python CLI agent workspace with skills, subagents, self-improvement, and a built-in web UI."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Birkin Codex Workspace" }]
+dependencies = []
+
+[project.scripts]
+birkin = "birkin_agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"

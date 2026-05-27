@@ -1,0 +1,30 @@
+# Reference Notes
+
+Scope date: 2026-05-27.
+
+## Sources Used
+
+- Hermes Agent repository: https://github.com/NousResearch/hermes-agent
+- Hermes skills documentation: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/skills.md
+- Hermes bundled skills catalog: https://github.com/NousResearch/hermes-agent/blob/main/website/docs/reference/skills-catalog.md
+- OpenClaw repository: https://github.com/openclaw/openclaw
+- OpenClaw skills documentation: https://github.com/openclaw/openclaw/blob/main/docs/tools/skills.md
+- OpenClaw tools overview: https://github.com/openclaw/openclaw/blob/main/docs/tools/index.md
+
+## Design Inputs Reflected
+
+- AgentSkills-compatible `SKILL.md` folders with frontmatter.
+- Progressive disclosure: list metadata first; load full bodies only when needed.
+- Agent-managed skills through proposal and apply commands.
+- Skill precedence with workspace roots before lower-priority roots.
+- Skill gating by platform, environment variables, and required binaries.
+- Per-agent skill allowlists.
+- Snapshot-style prompt packets for CLI subagent execution.
+- Web UI as an operator control surface, not a separate backend product.
+- Self-improvement loop based on run records, reviews, memory notes, and user corrections.
+
+## Boundary
+
+This workspace reflects the referenced systems in a lightweight Python implementation.
+It does not vendor either upstream project, copy their full skill catalogs, or claim API
+compatibility with their private runtime internals.

@@ -1,0 +1,5 @@
+# Tool Policy
+
+The default runner is `dry-run`; it generates a prompt packet and run record. Configure
+`runners.local-cli.command` in `birkin.json` before allowing a subagent to call an external
+model CLI. Keep runner commands as argv arrays, not shell strings.

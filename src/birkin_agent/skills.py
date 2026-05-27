@@ -166,7 +166,10 @@ def discover_skills(workspace: Workspace) -> list[SkillRecord]:
             resolved = skill_file.resolve()
             if not is_relative_to(resolved, root.resolve()):
                 continue
-            frontmatter, _body, issues = parse_frontmatter(skill_file)
+            try:
+                frontmatter, _body, issues = parse_frontmatter(skill_file)
+            except OSError:
+                continue
             name = str(frontmatter.get("name") or skill_file.parent.name)
             description = str(frontmatter.get("description") or "")
             eligible, reason = check_eligibility(frontmatter, config)
@@ -213,7 +216,118 @@ def validate_skills(workspace: Workspace) -> tuple[list[str], list[str]]:
         names.add(record.name)
         for shadowed in record.shadowed:
             warnings.append(f"{record.name} shadows {shadowed}")
+    config_errors, config_warnings = validate_skill_config(workspace)
+    errors.extend(config_errors)
+    warnings.extend(config_warnings)
     return errors, warnings
+
+
+def validate_skill_config(workspace: Workspace) -> tuple[list[str], list[str]]:
+    errors: list[str] = []
+    warnings: list[str] = []
+    config = workspace.config.get("skills", {})
+    if not isinstance(config, dict):
+        return ["skills config must be an object"], warnings
+    roots = config.get("roots")
+    if not isinstance(roots, list) or not roots:
+        errors.append("skills.roots must be a non-empty list")
+        roots = []
+    root_names: set[str] = set()
+    for root in roots:
+        if not isinstance(root, str) or not root.strip():
+            errors.append("skills.roots entries must be non-empty strings")
+            continue
+        if root in root_names:
+            warnings.append(f"skills.roots contains duplicate root: {root}")
+        root_names.add(root)
+        if Path(root).is_absolute():
+            errors.append(f"skills.roots must be workspace-relative: {root}")
+    enabled = config.get("enabled")
+    if enabled is not None and not isinstance(enabled, list):
+        errors.append("skills.enabled must be null or a list")
+    disabled = config.get("disabled")
+    if disabled is not None and not isinstance(disabled, list):
+        errors.append("skills.disabled must be a list")
+    allow_targets = config.get("allowSymlinkTargets")
+    if allow_targets is not None and not isinstance(allow_targets, list):
+        errors.append("skills.allowSymlinkTargets must be a list")
+
+    records = discover_skills(workspace)
+    names = {record.name for record in records}
+    enabled_names = set(enabled or []) if isinstance(enabled, list) else set()
+    disabled_names = set(disabled or []) if isinstance(disabled, list) else set()
+    for name in sorted(enabled_names - names):
+        errors.append(f"skills.enabled references missing skill: {name}")
+    for name in sorted(disabled_names - names):
+        warnings.append(f"skills.disabled references missing skill: {name}")
+    if records and not any(record.enabled and record.eligible for record in records):
+        errors.append("no skills are currently enabled and eligible")
+    return errors, warnings
+
+
+def skill_config_rows(workspace: Workspace) -> list[dict[str, str]]:
+    config = workspace.config.get("skills", {})
+    records = discover_skills(workspace)
+    enabled = [record for record in records if record.enabled and record.eligible]
+    gated = [record for record in records if record.enabled and not record.eligible]
+    shadowed = sum(len(record.shadowed) for record in records)
+    hermes = sum(1 for record in records if record.name.startswith("hermes-"))
+    openclaw = sum(1 for record in records if record.name.startswith("openclaw-"))
+    errors, warnings = validate_skill_config(workspace)
+    roots = config.get("roots") if isinstance(config, dict) else []
+    enabled_config = config.get("enabled") if isinstance(config, dict) else None
+    disabled_config = config.get("disabled") if isinstance(config, dict) else []
+    rows = [
+        {
+            "check": "roots",
+            "status": "error" if any("skills.roots" in item for item in errors) else "ok",
+            "detail": f"{len(roots) if isinstance(roots, list) else 0} configured roots",
+        },
+        {
+            "check": "catalog",
+            "status": "ok" if records else "error",
+            "detail": f"{len(records)} discovered skills",
+        },
+        {
+            "check": "enabled",
+            "status": "ok" if enabled else "error",
+            "detail": f"{len(enabled)} enabled and eligible",
+        },
+        {
+            "check": "gated",
+            "status": "warning" if gated else "ok",
+            "detail": f"{len(gated)} gated skills",
+        },
+        {
+            "check": "precedence",
+            "status": "warning" if shadowed else "ok",
+            "detail": f"{shadowed} shadowed duplicate skill files",
+        },
+        {
+            "check": "selection",
+            "status": "ok",
+            "detail": (
+                "all skills allowed"
+                if enabled_config is None
+                else f"{len(enabled_config) if isinstance(enabled_config, list) else 0} allowlisted"
+            ),
+        },
+        {
+            "check": "disabled",
+            "status": "warning" if disabled_config else "ok",
+            "detail": f"{len(disabled_config) if isinstance(disabled_config, list) else 0} disabled names",
+        },
+        {
+            "check": "reflections",
+            "status": "ok" if hermes >= 90 and openclaw >= 57 else "warning",
+            "detail": f"{hermes} Hermes, {openclaw} OpenClaw",
+        },
+    ]
+    if errors:
+        rows.append({"check": "config-errors", "status": "error", "detail": "; ".join(errors[:3])})
+    if warnings:
+        rows.append({"check": "config-warnings", "status": "warning", "detail": "; ".join(warnings[:3])})
+    return rows
 
 
 def create_skill(workspace: Workspace, name: str, description: str, group: str = "custom") -> Path:

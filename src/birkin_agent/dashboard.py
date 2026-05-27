@@ -10,7 +10,7 @@ from .auth import auth_rows, validate_auth
 from .gateway import gateway_info, validate_gateway
 from .improve import collect_signals
 from .models import model_rows, validate_models
-from .skills import discover_skills, skill_rows, validate_skills
+from .skills import discover_skills, skill_config_rows, skill_rows, validate_skills
 from .workspace import Workspace
 
 
@@ -150,11 +150,33 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
     jobs = list_jobs(workspace)
     usage = aggregate_usage(jobs)
     skills = skill_rows(workspace)
+    skill_config = skill_config_rows(workspace)
     agents = agent_rows(workspace)
     models = model_rows(workspace)
     auth = auth_rows(workspace)
     api = api_rows(workspace)
     signals = collect_signals(workspace)
+    setup = setup_dashboard_report(
+        workspace,
+        doctor_errors,
+        doctor_warnings,
+        model_errors,
+        model_warnings,
+        auth_errors,
+        auth_warnings,
+        api_errors,
+        api_warnings,
+        gateway_errors,
+        gateway_warnings,
+        skill_errors,
+        skill_warnings,
+        agent_errors,
+        agent_warnings,
+        models,
+        auth,
+        skills,
+        skill_config,
+    )
     return {
         "root": str(workspace.root),
         "metrics": {
@@ -174,11 +196,13 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
         "jobs": jobs,
         "warnings": warnings,
         "skills": skills,
+        "skillConfig": skill_config,
         "agents": agents,
         "models": models,
         "auth": auth,
         "api": api,
         "gateway": gateway_info(workspace),
+        "setup": setup,
         "signals": signals,
         "summary": workspace_summary(jobs, warnings, usage),
     }
@@ -208,6 +232,59 @@ def warning_rows(
         for value in values:
             rows.append({"severity": severity, "source": source, "message": value})
     return rows
+
+
+def setup_dashboard_report(
+    workspace: Workspace,
+    doctor_errors: list[str],
+    doctor_warnings: list[str],
+    model_errors: list[str],
+    model_warnings: list[str],
+    auth_errors: list[str],
+    auth_warnings: list[str],
+    api_errors: list[str],
+    api_warnings: list[str],
+    gateway_errors: list[str],
+    gateway_warnings: list[str],
+    skill_errors: list[str],
+    skill_warnings: list[str],
+    agent_errors: list[str],
+    agent_warnings: list[str],
+    models: list[dict[str, str]],
+    auth: list[dict[str, str]],
+    skills: list[dict[str, str]],
+    skill_config: list[dict[str, str]],
+) -> dict[str, Any]:
+    agent_ids = {str(raw.get("id") or "") for raw in workspace.config.get("agents", {}).get("list", [])}
+    rows = [
+        setup_row("workspace", doctor_errors, doctor_warnings, "Workspace files, prompt files, and configured roots are present.", "birkin-codex doctor"),
+        setup_row("models", model_errors, model_warnings, f"{len(models)} model profiles configured.", "birkin-codex model list"),
+        setup_row("auth", auth_errors, auth_warnings, f"{len(auth)} auth profiles configured.", "birkin-codex auth list"),
+        setup_row("api", api_errors, api_warnings, "OpenAI-compatible API profiles are configured.", "birkin-codex api list"),
+        setup_row("gateway", gateway_errors, gateway_warnings, "Gateway config is available.", "birkin-codex gateway status"),
+        setup_row("skills", skill_errors, skill_warnings, f"{sum(1 for row in skills if row['enabled'] == 'yes')}/{len(skills)} skills are enabled and eligible.", "birkin-codex skills validate"),
+        setup_row("agents", agent_errors, agent_warnings, "Agent roles and skill allowlists are configured.", "birkin-codex agents list"),
+        setup_row("chat", [] if "chat" in agent_ids else ["chat agent is not configured"], [], "Chat agent and dashboard chat API are available.", "birkin-codex web --port 8765"),
+    ]
+    status = "error" if any(row["status"] == "error" for row in rows) else "warning" if any(
+        row["status"] == "warning" for row in rows
+    ) else "ok"
+    return {"status": status, "checks": rows, "skillConfig": skill_config}
+
+
+def setup_row(
+    step: str,
+    errors: list[str],
+    warnings: list[str],
+    detail: str,
+    command: str,
+) -> dict[str, str]:
+    status = "error" if errors else "warning" if warnings else "ok"
+    if errors:
+        detail = "; ".join(errors[:2])
+    elif warnings:
+        detail = detail + " Warning: " + "; ".join(warnings[:2])
+    return {"step": step, "status": status, "detail": detail, "command": command}
 
 
 def aggregate_usage(jobs: list[dict[str, Any]]) -> dict[str, int]:

@@ -105,7 +105,10 @@ GET /api/models
 GET /api/auth
 GET /api/api-profiles
 GET /api/gateway
+GET /api/setup
+GET /api/skills/config
 POST /api/run
+POST /api/chat
 POST /api/auth/{profile}/status
 POST /api/auth/{profile}/login
 POST /api/auth/{profile}/logout

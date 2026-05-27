@@ -22,8 +22,12 @@ compatibility with their private internals.
   login, logout, and status commands to external CLIs such as `codex`.
 - `src/birkin_agent/api.py`: calls OpenAI-compatible chat completions endpoints
   through configured API profiles.
+- `src/birkin_agent/chat.py`: builds chat-mode tasks and writes normal run records
+  through the selected agent and model profile.
+- `src/birkin_agent/setup.py`: produces Hermes-style setup checks across workspace,
+  models, auth, API, gateway, skills, agents, and chat.
 - `src/birkin_agent/gateway.py`: serves a local machine-facing HTTP gateway for
-  health, status, model, auth, API, and run operations.
+  health, status, model, auth, API, setup, skill config, chat, and run operations.
 - `src/birkin_agent/improve.py`: records lessons, gathers signals, creates pending
   skill improvement proposals, and applies approved patches.
 - `src/birkin_agent/dashboard.py`: turns run records, usage, warnings, agents, and
@@ -58,6 +62,9 @@ The first skill with a given `name` wins. Later duplicates are reported as shado
   tokens to Birkin config.
 - The gateway binds to localhost by default. If `BIRKIN_GATEWAY_TOKEN` is set, or
   `gateway.requireToken` is true, it requires a bearer token or `x-birkin-token`.
+- Chat uses the same `--execute` safety boundary as other agent runs.
+- `skills config` verifies root, enabled/disabled, gated, precedence, and reflection
+  coverage in addition to `SKILL.md` validation.
 - Skills are procedural memory, not executable trust.
 - Web UI escapes workspace-provided table values before rendering.
 - Runtime artifacts live under ignored workspace directories.

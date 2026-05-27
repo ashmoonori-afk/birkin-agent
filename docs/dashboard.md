@@ -20,6 +20,8 @@ Open `http://127.0.0.1:8765`.
 - Recent job results with status, agent, model, task, result summary, usage, and timestamp.
 - Model profile count and a model selector for new jobs.
 - Auth, API, and gateway tabs for integration status.
+- Setup and skill config tabs for readiness verification.
+- Chat tab for message-oriented agent runs.
 - Warnings in a separate panel.
 - A job creation form that writes a dry-run record by default and can explicitly
   execute the selected runner when the execute checkbox is enabled.
@@ -32,6 +34,8 @@ The dashboard reads:
 - `skills/**/SKILL.md` for skill status and gating warnings.
 - `birkin.json` for agents, models, runners, auth profiles, API profiles, gateway
   config, and allowlists.
+- `/api/chat` for chat messages through the selected agent and model profile.
+- `/api/status` for setup and skill config status shown in the dashboard tabs.
 - `memory/`, `reviews/`, and `runs/` for improvement signals.
 
 ## Warning Model

@@ -34,6 +34,8 @@ implementation small and inspectable.
 | Auth | Delegates local CLI OAuth/login state to tools such as `codex` without storing tokens in Birkin. |
 | API | Calls OpenAI-compatible chat completions endpoints when an API model profile is selected and executed. |
 | Gateway | Serves a local machine-facing HTTP gateway for status, auth, model, API, and run operations. |
+| Setup | Reports Hermes-style readiness across workspace, models, auth, API, gateway, skills, agents, and chat. |
+| Chat | Provides a dashboard chat tab and `birkin-codex chat` command backed by the configured agent/model system. |
 | Subagents | Builds role-scoped prompt packets for planner, builder, reviewer, researcher, and operator agents. |
 | Self-improvement | Records lessons, proposes skill patches, and applies approved improvements. |
 | CLI | Runs as `birkin-codex` after install, `python -m birkin_agent`, `scripts/birkin-codex`, or `scripts/birkin-codex.ps1`. `birkin` remains a compatibility alias. |
@@ -102,8 +104,10 @@ On Windows, use `.venv\Scripts\activate` and then the same `pip install -e .` fl
 
 ```sh
 birkin-codex doctor
+birkin-codex setup
 birkin-codex skills list
 birkin-codex skills validate
+birkin-codex skills config
 birkin-codex skills create release-checklist --description "Review release readiness."
 birkin-codex model list
 birkin-codex model use codex-local
@@ -113,6 +117,7 @@ birkin-codex gateway routes
 birkin-codex agents list
 birkin-codex agents packet planner --model packet --task "Plan the work"
 birkin-codex agents run builder --model codex-local --task "Prepare the implementation"
+birkin-codex chat --message "Summarize this workspace" --model packet
 birkin-codex improve record --lesson "LESSON: Validate skills before running an agent." --skill skill-authoring
 birkin-codex improve propose
 birkin-codex web --port 8765
@@ -132,6 +137,8 @@ It shows:
 - Estimated prompt usage.
 - Selectable model profiles.
 - Auth, API, and gateway status.
+- Setup readiness and skill config status.
+- Chat messages through the selected agent and model.
 - Enabled and gated skills.
 - Agents and their skill allowlists.
 - Warnings in a separate panel.
@@ -241,6 +248,31 @@ birkin-codex gateway run --port 8770
 
 See [Auth, API, and Gateway](docs/auth-api-gateway.md).
 
+## Setup, Chat, and Skill Config
+
+Hermes-style readiness checks:
+
+```sh
+birkin-codex setup
+birkin-codex setup --json
+```
+
+Skill configuration verification:
+
+```sh
+birkin-codex skills config
+birkin-codex skills validate
+```
+
+Dashboard and CLI chat:
+
+```sh
+birkin-codex web --port 8765
+birkin-codex chat --message "Summarize this workspace" --model packet
+```
+
+See [Setup, Chat, and Skill Config](docs/setup-chat-skills.md).
+
 ## Advantages
 
 - Lightweight: Python standard library core, no service stack required.
@@ -250,6 +282,8 @@ See [Auth, API, and Gateway](docs/auth-api-gateway.md).
 - Model-profile based: switch between packet-only, Codex CLI, OpenAI-compatible API, or a custom local CLI without code changes.
 - Auth-aware: local CLI OAuth is delegated to the tool's own login store instead of saved in Birkin config.
 - Gateway-ready: a local HTTP surface can drive runs and status checks from other tools.
+- Setup-visible: readiness checks expose incomplete auth, API, gateway, skills, agent, or chat configuration.
+- Chat-ready: dashboard and CLI chat reuse the same auditable run records as other agent jobs.
 - Hermes-aware: all bundled Hermes skill directories are represented as Birkin capability markers.
 - OpenClaw-aware: every upstream OpenClaw skill directory is represented as a Birkin capability marker.
 - Dashboard-first operations: job status, result summaries, usage, and warnings are visible immediately.
@@ -284,15 +318,18 @@ Local reference notes are in [docs/reference-notes.md](docs/reference-notes.md).
 python -m unittest discover -s tests
 python -m compileall -q src tests
 birkin-codex doctor
+birkin-codex setup
 birkin-codex skills validate
+birkin-codex skills config
 ```
 
 Current snapshot:
 
-- Unit tests: 13 passed.
-- Dashboard smoke check: dashboard status API reported 4 models, 2 auth profiles, 2 API profiles, and auth/API/gateway tabs in the served HTML.
-- Gateway smoke check: `GET /health` returned `ok` and `GET /api/models` returned 4 model profiles.
-- Code review note: [reviews/2026-05-27-auth-api-gateway-review.md](reviews/2026-05-27-auth-api-gateway-review.md).
+- Unit tests: 15 passed.
+- Dashboard smoke check: dashboard status API reported setup status, 8 skill config rows, and chat/setup tabs in the served HTML.
+- Chat smoke check: `POST /api/chat` returned packet-only status with a reply and run record.
+- Gateway smoke check: `GET /health` returned `ok` and `GET /api/setup` returned setup status.
+- Code review note: [reviews/2026-05-27-setup-chat-skills-review.md](reviews/2026-05-27-setup-chat-skills-review.md).
 
 ## More
 
@@ -301,6 +338,7 @@ Current snapshot:
 - [macOS usage](docs/macos.md)
 - [Model selection](docs/model-selection.md)
 - [Auth, API, and Gateway](docs/auth-api-gateway.md)
+- [Setup, Chat, and Skill Config](docs/setup-chat-skills.md)
 - [Hermes skill map](docs/hermes-skill-map.md)
 - [OpenClaw skill map](docs/openclaw-skill-map.md)
 - [Reference notes](docs/reference-notes.md)

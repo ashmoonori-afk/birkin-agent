@@ -8,10 +8,12 @@ import sys
 from .agents import add_agent, agent_rows, build_packet, run_agent, validate_agents
 from .api import add_api_profile, api_rows, validate_api
 from .auth import add_auth_profile, auth_rows, run_auth_command, validate_auth
+from .chat import run_chat
 from .gateway import ROUTES, gateway_info, serve_gateway, validate_gateway
 from .improve import append_lesson, apply_improvement, propose_improvement
 from .models import add_model_profile, model_rows, use_model_profile, validate_models
-from .skills import create_skill, discover_skills, skill_rows, validate_skills
+from .setup import setup_report, setup_rows
+from .skills import create_skill, discover_skills, skill_config_rows, skill_rows, validate_skills
 from .util import print_table
 from .web import serve
 from .workspace import Workspace
@@ -39,6 +41,7 @@ def build_parser() -> argparse.ArgumentParser:
     doctor = sub.add_parser("doctor", help="Check workspace health")
     doctor.set_defaults(func=cmd_doctor)
 
+    add_setup_parser(sub.add_parser("setup", help="Check Hermes-style setup readiness"))
     add_model_parser(sub.add_parser("model", help="Select and configure model profiles"))
     add_model_parser(sub.add_parser("models", help="Select and configure model profiles"))
     add_auth_parser(sub.add_parser("auth", help="Manage local CLI auth profiles"))
@@ -55,6 +58,9 @@ def build_parser() -> argparse.ArgumentParser:
     skills_show.set_defaults(func=cmd_skills_show)
     skills_validate = skills_sub.add_parser("validate")
     skills_validate.set_defaults(func=cmd_skills_validate)
+    skills_config = skills_sub.add_parser("config")
+    skills_config.add_argument("--json", action="store_true")
+    skills_config.set_defaults(func=cmd_skills_config)
     skills_create = skills_sub.add_parser("create")
     skills_create.add_argument("name")
     skills_create.add_argument("--description", required=True)
@@ -116,7 +122,28 @@ def build_parser() -> argparse.ArgumentParser:
     web.add_argument("--host", default="127.0.0.1")
     web.add_argument("--port", type=int, default=8765)
     web.set_defaults(func=cmd_web)
+
+    chat = sub.add_parser("chat", help="Send one message through the chat agent")
+    chat.add_argument("--message", required=True)
+    chat.add_argument("--agent")
+    chat.add_argument("--model")
+    chat.add_argument("--provider")
+    chat.add_argument("--execute", action="store_true")
+    chat.add_argument("--json", action="store_true")
+    chat.set_defaults(func=cmd_chat)
     return parser
+
+
+def add_setup_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--json", action="store_true")
+    setup_sub = parser.add_subparsers(dest="setup_command")
+    setup_check = setup_sub.add_parser("check")
+    setup_check.add_argument("--json", action="store_true")
+    setup_check.set_defaults(func=cmd_setup_check)
+    setup_status = setup_sub.add_parser("status")
+    setup_status.add_argument("--json", action="store_true")
+    setup_status.set_defaults(func=cmd_setup_check)
+    parser.set_defaults(func=cmd_setup_check)
 
 
 def add_model_parser(parser: argparse.ArgumentParser) -> None:
@@ -239,6 +266,18 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         return 1
     print("ok")
     return 0
+
+
+def cmd_setup_check(args: argparse.Namespace) -> int:
+    workspace = ws()
+    report = setup_report(workspace)
+    if args.json:
+        print(json.dumps(report, indent=2, ensure_ascii=False))
+    else:
+        print_table(setup_rows(workspace), ["step", "status", "detail", "command"])
+        print()
+        print_table(skill_config_rows(workspace), ["check", "status", "detail"])
+    return 1 if report["status"] == "error" else 0
 
 
 def cmd_models_list(args: argparse.Namespace) -> int:
@@ -427,6 +466,15 @@ def cmd_skills_validate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_skills_config(args: argparse.Namespace) -> int:
+    rows = skill_config_rows(ws())
+    if args.json:
+        print(json.dumps(rows, indent=2, ensure_ascii=False))
+    else:
+        print_table(rows, ["check", "status", "detail"])
+    return 1 if any(row["status"] == "error" for row in rows) else 0
+
+
 def cmd_skills_create(args: argparse.Namespace) -> int:
     path = create_skill(ws(), args.name, args.description, args.group)
     print(path)
@@ -529,3 +577,20 @@ def cmd_improve_apply(args: argparse.Namespace) -> int:
 def cmd_web(args: argparse.Namespace) -> int:
     serve(ws(), args.host, args.port)
     return 0
+
+
+def cmd_chat(args: argparse.Namespace) -> int:
+    payload = run_chat(
+        ws(),
+        args.message,
+        agent_id=args.agent,
+        model_name=args.model,
+        provider_name=args.provider,
+        execute=args.execute,
+    )
+    if args.json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    else:
+        print(payload["reply"])
+        print(f"record {payload['record']}")
+    return 0 if payload["status"] in {"ok", "packet-only"} else 1

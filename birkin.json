@@ -78,6 +78,15 @@
           "messaging-gateway",
           "subagent-orchestration"
         ]
+      },
+      {
+        "id": "chat",
+        "role": "Handle interactive user chat with workspace memory and skill-aware routing.",
+        "skills": [
+          "memory-recall",
+          "taskflow",
+          "documentation"
+        ]
       }
     ]
   },

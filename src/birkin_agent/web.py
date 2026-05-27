@@ -5,6 +5,7 @@ import json
 from urllib.parse import urlparse
 
 from .agents import run_agent
+from .chat import run_chat
 from .dashboard import dashboard_data
 from .workspace import Workspace
 
@@ -138,8 +139,8 @@ INDEX_HTML = """<!doctype html>
     }
     .status-running { background: var(--accent-soft); color: #084b83; }
     .status-ok, .status-packet-only { background: var(--ok-soft); color: var(--ok); }
-    .status-failed, .severity-critical { background: var(--bad-soft); color: var(--bad); }
-    .status-unknown, .severity-warning { background: var(--warn-soft); color: var(--warn); }
+    .status-failed, .status-error, .severity-critical { background: var(--bad-soft); color: var(--bad); }
+    .status-warning, .status-unknown, .severity-warning { background: var(--warn-soft); color: var(--warn); }
     label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
     select, textarea {
       width: 100%;
@@ -154,6 +155,34 @@ INDEX_HTML = """<!doctype html>
     input[type="checkbox"] { margin-right: 6px; }
     .form-row { margin-bottom: 10px; }
     .actions { display: flex; justify-content: flex-end; gap: 8px; }
+    .chat-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 300px;
+      gap: 14px;
+      align-items: start;
+    }
+    .chat-thread {
+      min-height: 440px;
+      max-height: calc(100vh - 240px);
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fbfcfd;
+      padding: 12px;
+    }
+    .message {
+      max-width: 78%;
+      margin-bottom: 10px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .message.user { margin-left: auto; background: var(--accent); color: #fff; }
+    .message.assistant { margin-right: auto; background: #fff; border: 1px solid var(--line); }
+    .chat-input { min-height: 120px; }
     .button {
       border: 1px solid #0b5b9d;
       background: var(--accent);
@@ -181,13 +210,13 @@ INDEX_HTML = """<!doctype html>
       main { grid-template-columns: 1fr; }
       nav {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 6px;
         border-right: 0;
         border-bottom: 1px solid var(--line);
       }
       nav button { margin-bottom: 0; text-align: center; }
-      .summary-band, .dashboard-grid { grid-template-columns: 1fr; }
+      .summary-band, .dashboard-grid, .chat-layout { grid-template-columns: 1fr; }
       .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       header { padding: 0 12px; }
       .content { padding: 12px; }
@@ -202,6 +231,8 @@ INDEX_HTML = """<!doctype html>
   <main>
     <nav>
       <button class="active" data-tab="dashboard">Dashboard</button>
+      <button data-tab="chat">Chat</button>
+      <button data-tab="setup">Setup</button>
       <button data-tab="jobs">Jobs</button>
       <button data-tab="models">Models</button>
       <button data-tab="auth">Auth</button>
@@ -259,6 +290,23 @@ INDEX_HTML = """<!doctype html>
           </div>
         </div>
       </section>
+      <section id="chat">
+        <div class="chat-layout">
+          <div class="panel">
+            <div class="panel-head"><h2>Chat</h2><span class="muted" id="chat-status"></span></div>
+            <div id="chat-thread" class="chat-thread"></div>
+          </div>
+          <div class="panel">
+            <h2>Message</h2>
+            <div class="form-row"><label for="chat-agent">Agent</label><select id="chat-agent"></select></div>
+            <div class="form-row"><label for="chat-model">Model</label><select id="chat-model"></select></div>
+            <div class="form-row"><label for="chat-message">Message</label><textarea id="chat-message" class="chat-input"></textarea></div>
+            <div class="form-row"><label><input id="chat-execute" type="checkbox">Execute selected runner</label></div>
+            <div class="actions"><button class="button" id="chat-send">Send</button></div>
+          </div>
+        </div>
+      </section>
+      <section id="setup"><div class="panel"><h2>Setup</h2><table id="setup-table"></table></div><div class="panel"><h2>Skill Config</h2><table id="skill-config-table"></table></div></section>
       <section id="jobs"><div class="panel"><h2>All Jobs</h2><table id="jobs-full-table"></table></div></section>
       <section id="models"><div class="panel"><h2>Models</h2><table id="models-table"></table></div></section>
       <section id="auth"><div class="panel"><h2>Auth</h2><table id="auth-table"></table></div></section>
@@ -270,7 +318,7 @@ INDEX_HTML = """<!doctype html>
     </div>
   </main>
   <script>
-    const state = { data: null };
+    const state = { data: null, chatMessages: [] };
     function esc(value) {
       return String(value ?? "")
         .replaceAll("&", "&amp;")
@@ -287,6 +335,18 @@ INDEX_HTML = """<!doctype html>
     }
     function severityChip(severity) {
       return `<span class="chip severity-${safeClass(severity)}">${esc(severity)}</span>`;
+    }
+    function renderChat() {
+      const thread = document.querySelector("#chat-thread");
+      if (!state.chatMessages.length) {
+        thread.innerHTML = `<div class="empty">No messages.</div>`;
+        return;
+      }
+      thread.innerHTML = state.chatMessages.map(item => {
+        const role = item.role === "user" ? "user" : "assistant";
+        return `<div class="message ${role}">${esc(item.content)}</div>`;
+      }).join("");
+      thread.scrollTop = thread.scrollHeight;
     }
     function renderUsage(usage) {
       const box = document.createElement("div");
@@ -373,6 +433,17 @@ INDEX_HTML = """<!doctype html>
         {key: "command", label: "Command"},
         {key: "description", label: "Description"}
       ]);
+      table(document.querySelector("#setup-table"), d.setup.checks, [
+        {key: "step", label: "Step"},
+        {key: "status", label: "Status"},
+        {key: "detail", label: "Detail"},
+        {key: "command", label: "Command"}
+      ], { status: statusChip });
+      table(document.querySelector("#skill-config-table"), d.skillConfig, [
+        {key: "check", label: "Check"},
+        {key: "status", label: "Status"},
+        {key: "detail", label: "Detail"}
+      ], { status: statusChip });
       table(document.querySelector("#auth-table"), d.auth, [
         {key: "id", label: "ID"},
         {key: "type", label: "Type"},
@@ -420,6 +491,22 @@ INDEX_HTML = """<!doctype html>
         option.textContent = m.default === "yes" ? `${m.id} (default)` : m.id;
         return option;
       }));
+      const chatAgent = document.querySelector("#chat-agent");
+      chatAgent.replaceChildren(...d.agents.map(a => {
+        const option = document.createElement("option");
+        option.value = a.id;
+        option.textContent = a.id;
+        if (a.id === "chat") option.selected = true;
+        return option;
+      }));
+      const chatModel = document.querySelector("#chat-model");
+      chatModel.replaceChildren(...d.models.map(m => {
+        const option = document.createElement("option");
+        option.value = m.id;
+        option.textContent = m.default === "yes" ? `${m.id} (default)` : m.id;
+        return option;
+      }));
+      renderChat();
     }
     document.querySelectorAll("nav button").forEach(button => {
       button.addEventListener("click", () => {
@@ -440,6 +527,37 @@ INDEX_HTML = """<!doctype html>
         })
       });
       document.querySelector("#packet").textContent = JSON.stringify(await res.json(), null, 2);
+      await load();
+    });
+    document.querySelector("#chat-send").addEventListener("click", async () => {
+      const input = document.querySelector("#chat-message");
+      const message = input.value.trim();
+      if (!message) return;
+      const history = state.chatMessages.slice(-12);
+      state.chatMessages.push({role: "user", content: message});
+      input.value = "";
+      document.querySelector("#chat-status").textContent = "Sending";
+      renderChat();
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: {"content-type": "application/json"},
+        body: JSON.stringify({
+          agent: document.querySelector("#chat-agent").value,
+          model: document.querySelector("#chat-model").value,
+          message,
+          history,
+          execute: document.querySelector("#chat-execute").checked
+        })
+      });
+      const payload = await res.json();
+      if (payload.error) {
+        state.chatMessages.push({role: "assistant", content: payload.error});
+        document.querySelector("#chat-status").textContent = "Error";
+      } else {
+        state.chatMessages.push({role: "assistant", content: payload.reply});
+        document.querySelector("#chat-status").textContent = payload.status;
+      }
+      renderChat();
       await load();
     });
     load();
@@ -513,6 +631,32 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"error": str(exc)}, 400)
                 return
             self.send_json({"record": str(record), "result": result, "dashboard": dashboard_data(self.workspace)})
+            return
+        if parsed.path == "/api/chat":
+            agent_id = str(payload.get("agent") or "").strip() or None
+            model = str(payload.get("model") or "").strip() or None
+            provider = str(payload.get("provider") or "").strip() or None
+            message = str(payload.get("message") or "").strip()
+            history = payload.get("history") if isinstance(payload.get("history"), list) else []
+            execute = bool(payload.get("execute") or False)
+            if not message:
+                self.send_json({"error": "message is required"}, 400)
+                return
+            try:
+                chat = run_chat(
+                    self.workspace,
+                    message,
+                    agent_id=agent_id,
+                    model_name=model,
+                    provider_name=provider,
+                    execute=execute,
+                    history=history,
+                )
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, 400)
+                return
+            chat["dashboard"] = dashboard_data(self.workspace)
+            self.send_json(chat)
             return
         self.send_json({"error": "not found"}, 404)
 

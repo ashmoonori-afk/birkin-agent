@@ -31,7 +31,9 @@ python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -e .
 birkin-codex doctor
+birkin-codex setup
 birkin-codex skills validate
+birkin-codex skills config
 birkin-codex web --port 8765
 ```
 
@@ -78,4 +80,10 @@ Run the local machine-facing gateway:
 
 ```sh
 birkin-codex gateway run --port 8770
+```
+
+Chat through the default packet-only profile:
+
+```sh
+birkin-codex chat --message "Summarize this workspace" --model packet
 ```

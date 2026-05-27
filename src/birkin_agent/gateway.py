@@ -9,7 +9,9 @@ from urllib.parse import urlparse
 from .api import api_rows, validate_api
 from .agents import run_agent
 from .auth import auth_rows, run_auth_command, validate_auth
+from .chat import run_chat
 from .models import model_rows
+from .skills import skill_config_rows
 from .workspace import Workspace
 
 
@@ -21,7 +23,10 @@ ROUTES = [
     "GET /api/auth",
     "GET /api/api-profiles",
     "GET /api/gateway",
+    "GET /api/setup",
+    "GET /api/skills/config",
     "POST /api/run",
+    "POST /api/chat",
     "POST /api/auth/{profile}/status",
     "POST /api/auth/{profile}/login",
     "POST /api/auth/{profile}/logout",
@@ -153,6 +158,14 @@ class GatewayHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/gateway":
             self.send_json(gateway_info(self.workspace, self.host_label, self.port_label))
             return
+        if parsed.path == "/api/setup":
+            from .setup import setup_report
+
+            self.send_json(setup_report(self.workspace))
+            return
+        if parsed.path == "/api/skills/config":
+            self.send_json({"skillConfig": skill_config_rows(self.workspace)})
+            return
         self.send_json({"error": "not found"}, 404)
 
     def do_POST(self) -> None:
@@ -165,6 +178,9 @@ class GatewayHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/run":
             self.handle_run(payload)
+            return
+        if parsed.path == "/api/chat":
+            self.handle_chat(payload)
             return
         parts = [part for part in parsed.path.split("/") if part]
         if len(parts) == 4 and parts[0] == "api" and parts[1] == "auth":
@@ -216,6 +232,27 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 "dashboard": dashboard_data(self.workspace),
             }
         )
+
+    def handle_chat(self, payload: dict[str, Any]) -> None:
+        message = str(payload.get("message") or "").strip()
+        if not message:
+            self.send_json({"error": "message is required"}, 400)
+            return
+        history = payload.get("history") if isinstance(payload.get("history"), list) else []
+        try:
+            result = run_chat(
+                self.workspace,
+                message,
+                agent_id=str(payload.get("agent") or "").strip() or None,
+                model_name=str(payload.get("model") or "").strip() or None,
+                provider_name=str(payload.get("provider") or "").strip() or None,
+                execute=bool(payload.get("execute") or False),
+                history=history,
+            )
+        except Exception as exc:
+            self.send_json({"error": str(exc)}, 400)
+            return
+        self.send_json({"chat": result})
 
 
 def serve_gateway(workspace: Workspace, host: str | None = None, port: int | None = None) -> None:

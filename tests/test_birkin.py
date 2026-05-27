@@ -13,11 +13,13 @@ from urllib.request import Request, urlopen
 from birkin_agent.agents import build_packet, run_agent, validate_agents
 from birkin_agent.api import api_rows, validate_api
 from birkin_agent.auth import auth_rows, run_auth_command, validate_auth
+from birkin_agent.chat import run_chat
 from birkin_agent.dashboard import dashboard_data
 from birkin_agent.gateway import GatewayHandler
 from birkin_agent.improve import append_lesson, apply_improvement, propose_improvement
 from birkin_agent.models import render_model_command, resolve_model_profile, use_model_profile, validate_models
-from birkin_agent.skills import create_skill, discover_skills, validate_skills
+from birkin_agent.setup import setup_report
+from birkin_agent.skills import create_skill, discover_skills, skill_config_rows, validate_skills
 from birkin_agent.web import Handler
 from birkin_agent.workspace import Workspace
 
@@ -47,6 +49,7 @@ class WorkspaceTest(unittest.TestCase):
         self.assertGreaterEqual(len(hermes_names), 90)
         self.assertIn("hermes-test-driven-development", hermes_names)
         self.assertIn("hermes-ascii-art", hermes_names)
+        self.assertIn("chat", {raw["id"] for raw in workspace.config["agents"]["list"]})
         self.assertTrue((workspace.root / "scripts" / "birkin-codex").exists())
         self.assertTrue((workspace.root / "scripts" / "birkin-codex.ps1").exists())
         self.assertTrue((workspace.root / "scripts" / "birkin").exists())
@@ -214,6 +217,25 @@ class WorkspaceTest(unittest.TestCase):
         self.assertIn("summary", payload)
         self.assertGreater(payload["usage"]["estimatedTokens"], 0)
 
+    def test_setup_and_skill_config_report(self) -> None:
+        workspace = self.make_workspace()
+        report = setup_report(workspace)
+        self.assertIn(report["status"], {"ok", "warning"})
+        checks = {row["step"]: row for row in report["checks"]}
+        self.assertIn("workspace", checks)
+        self.assertIn("chat", checks)
+        config = {row["check"]: row for row in skill_config_rows(workspace)}
+        self.assertEqual(config["catalog"]["status"], "ok")
+        self.assertIn("90 Hermes", config["reflections"]["detail"])
+
+    def test_chat_packet_writes_record(self) -> None:
+        workspace = self.make_workspace()
+        payload = run_chat(workspace, "Hello from chat", model_name="packet")
+        self.assertEqual(payload["agent"], "chat")
+        self.assertEqual(payload["status"], "packet-only")
+        self.assertIn("Prompt packet built", payload["reply"])
+        self.assertTrue(Path(payload["record"]).exists())
+
     def test_dashboard_summarizes_jobs_usage_and_warnings(self) -> None:
         workspace = self.make_workspace()
         run_agent(workspace, "planner", "Plan a release")
@@ -227,6 +249,8 @@ class WorkspaceTest(unittest.TestCase):
         self.assertIn("auth", data)
         self.assertIn("api", data)
         self.assertIn("gateway", data)
+        self.assertIn("setup", data)
+        self.assertIn("skillConfig", data)
         self.assertGreaterEqual(data["metrics"]["modelsTotal"], 4)
         self.assertGreaterEqual(data["metrics"]["authProfiles"], 2)
         self.assertGreaterEqual(data["metrics"]["apiProfiles"], 2)
@@ -278,6 +302,8 @@ class WorkspaceTest(unittest.TestCase):
         self.assertIn("auth", status)
         self.assertIn("api", status)
         self.assertIn("gateway", status)
+        self.assertIn("setup", status)
+        self.assertIn("skillConfig", status)
 
         body = json.dumps({"agent": "planner", "model": "packet", "task": "Plan a release"}).encode("utf-8")
         request = Request(
@@ -291,6 +317,18 @@ class WorkspaceTest(unittest.TestCase):
         self.assertIn("record", run)
         self.assertIn("dashboard", run)
         self.assertTrue(Path(run["record"]).exists())
+
+        chat_body = json.dumps({"agent": "chat", "model": "packet", "message": "Hello"}).encode("utf-8")
+        chat_request = Request(
+            f"http://{host}:{port}/api/chat",
+            data=chat_body,
+            headers={"content-type": "application/json"},
+            method="POST",
+        )
+        with urlopen(chat_request, timeout=5) as response:
+            chat = json.loads(response.read().decode("utf-8"))
+        self.assertEqual(chat["status"], "packet-only")
+        self.assertIn("reply", chat)
 
     def test_gateway_status_and_run_api(self) -> None:
         workspace = self.make_workspace()
@@ -316,6 +354,10 @@ class WorkspaceTest(unittest.TestCase):
             models = json.loads(response.read().decode("utf-8"))
         self.assertGreaterEqual(len(models["models"]), 1)
 
+        with urlopen(f"http://{host}:{port}/api/setup", timeout=5) as response:
+            setup = json.loads(response.read().decode("utf-8"))
+        self.assertIn("checks", setup)
+
         body = json.dumps({"agent": "planner", "model": "packet", "task": "Plan a release"}).encode("utf-8")
         request = Request(
             f"http://{host}:{port}/api/run",
@@ -327,6 +369,17 @@ class WorkspaceTest(unittest.TestCase):
             run = json.loads(response.read().decode("utf-8"))
         self.assertIn("record", run)
         self.assertFalse(run["result"]["executed"])
+
+        chat_body = json.dumps({"agent": "chat", "model": "packet", "message": "Hello"}).encode("utf-8")
+        chat_request = Request(
+            f"http://{host}:{port}/api/chat",
+            data=chat_body,
+            headers={"content-type": "application/json"},
+            method="POST",
+        )
+        with urlopen(chat_request, timeout=5) as response:
+            chat = json.loads(response.read().decode("utf-8"))
+        self.assertEqual(chat["chat"]["status"], "packet-only")
 
 
 if __name__ == "__main__":

@@ -97,6 +97,11 @@ class WorkspaceTest(unittest.TestCase):
         self.assertEqual(names, {"taskflow", "memory-recall", "documentation"})
         self.assertEqual(packet["model"]["id"], "packet")
         self.assertEqual(packet["model"]["runner"], "dry-run")
+        self.assertEqual(packet["promptStyle"], "packet")
+        self.assertIn("identity", packet["promptSections"])
+        self.assertIn("memoryDigest", packet["promptSections"])
+        self.assertIn("Birkin Identity", packet["prompt"])
+        self.assertIn("Memory Digest", packet["prompt"])
         self.assertIn("<available_skills>", packet["prompt"])
         self.assertNotIn("shell-runtime", names)
 
@@ -126,7 +131,13 @@ class WorkspaceTest(unittest.TestCase):
             "command": [
                 sys.executable,
                 "-c",
-                "import sys; data=sys.stdin.read(); print('model-output:' + str(len(data)))",
+                (
+                    "import sys; data=sys.stdin.read(); "
+                    "print('model-output:' + str(len(data))); "
+                    "print('identity=' + str('Birkin Identity' in data)); "
+                    "print('memory=' + str('Memory Digest' in data)); "
+                    "print('skill_body=' + str('## Skill:' in data))"
+                ),
             ],
             "timeoutSeconds": 30,
             "description": "Unit-test local CLI model.",
@@ -141,9 +152,14 @@ class WorkspaceTest(unittest.TestCase):
         )
         self.assertEqual(result["returncode"], 0)
         self.assertIn("model-output:", result["stdout"])
+        self.assertIn("identity=True", result["stdout"])
+        self.assertIn("memory=True", result["stdout"])
+        self.assertIn("skill_body=True", result["stdout"])
         payload = json.loads(record.read_text(encoding="utf-8"))
         self.assertEqual(payload["status"], "ok")
         self.assertEqual(payload["model"]["id"], "test-local")
+        self.assertEqual(payload["packet"]["promptStyle"], "cli-agent")
+        self.assertIn("skillBodies", payload["packet"]["promptSections"])
 
     def test_auth_profiles_delegate_to_local_cli_commands(self) -> None:
         workspace = self.make_workspace()
@@ -353,6 +369,8 @@ class WorkspaceTest(unittest.TestCase):
         self.assertIn(report["status"], {"ok", "warning"})
         checks = {row["step"]: row for row in report["checks"]}
         self.assertIn("mode", checks)
+        self.assertIn("runtime", checks)
+        self.assertEqual(checks["runtime"]["status"], "ok")
         self.assertIn("workspace", checks)
         self.assertIn("chat", checks)
         self.assertNotIn("api", checks)
@@ -365,6 +383,19 @@ class WorkspaceTest(unittest.TestCase):
         self.assertIn("90 Hermes", config["reflections"]["detail"])
         self.assertEqual(config["upstream-mirror"]["status"], "ok")
         self.assertIn("147 mirrored", config["upstream-mirror"]["detail"])
+
+    def test_skills_sync_reports_repo_managed_mirrors(self) -> None:
+        workspace = self.make_workspace()
+        with (
+            patch("birkin_agent.cli.ws", return_value=workspace),
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+        ):
+            self.assertEqual(cli_main(["skills", "sync", "--json"]), 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["status"], "ok")
+        self.assertEqual(payload["mode"], "repo-managed")
+        self.assertTrue(payload["dryRun"])
+        self.assertIn("upstreamMirror", payload)
 
     def test_experience_mode_switches_skill_surface(self) -> None:
         workspace = self.make_workspace()

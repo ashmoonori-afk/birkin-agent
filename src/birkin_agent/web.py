@@ -80,6 +80,7 @@ INDEX_HTML = """<!doctype html>
     }
     nav button.active { background: var(--accent-soft); color: #084b83; font-weight: 700; }
     body.lite:not(.show-advanced) nav button[data-advanced="true"] { display: none; }
+    body.lite:not(.show-advanced) .advanced-control { display: none; }
     #advanced-toggle {
       margin-top: 10px;
       border: 1px solid var(--line);
@@ -294,12 +295,12 @@ INDEX_HTML = """<!doctype html>
           </div>
           <div>
             <div class="panel">
-              <h2>Create Job</h2>
+              <h2>Try Safe Packet</h2>
               <div class="form-row"><label for="agent">Agent</label><select id="agent"></select></div>
               <div class="form-row"><label for="model">Model</label><select id="model"></select></div>
               <div class="form-row"><label for="task">Task</label><textarea id="task">Plan a safe next step for this workspace.</textarea></div>
-              <div class="form-row"><label><input id="execute" type="checkbox">Execute selected runner</label></div>
-              <div class="actions"><button class="button" id="build">Run</button></div>
+              <div class="form-row advanced-control"><label><input id="execute" type="checkbox">Execute selected runner</label></div>
+              <div class="actions"><button class="button" id="build">Build Packet</button></div>
               <pre id="packet"></pre>
             </div>
             <div class="panel">
@@ -320,7 +321,7 @@ INDEX_HTML = """<!doctype html>
             <div class="form-row"><label for="chat-agent">Agent</label><select id="chat-agent"></select></div>
             <div class="form-row"><label for="chat-model">Model</label><select id="chat-model"></select></div>
             <div class="form-row"><label for="chat-message">Message</label><textarea id="chat-message" class="chat-input"></textarea></div>
-            <div class="form-row"><label><input id="chat-execute" type="checkbox">Execute selected runner</label></div>
+            <div class="form-row advanced-control"><label><input id="chat-execute" type="checkbox">Execute selected runner</label></div>
             <div class="actions"><button class="button" id="chat-send">Send</button></div>
           </div>
         </div>
@@ -361,6 +362,9 @@ INDEX_HTML = """<!doctype html>
     }
     function severityChip(severity) {
       return `<span class="chip severity-${safeClass(severity)}">${esc(severity)}</span>`;
+    }
+    function advancedEnabled() {
+      return !document.body.classList.contains("lite") || document.body.classList.contains("show-advanced");
     }
     function renderChat() {
       const thread = document.querySelector("#chat-thread");
@@ -697,7 +701,7 @@ INDEX_HTML = """<!doctype html>
           agent: document.querySelector("#agent").value,
           model: document.querySelector("#model").value,
           task: document.querySelector("#task").value,
-          execute: document.querySelector("#execute").checked
+          execute: advancedEnabled() && document.querySelector("#execute").checked
         })
       });
       document.querySelector("#packet").textContent = JSON.stringify(await res.json(), null, 2);
@@ -720,7 +724,7 @@ INDEX_HTML = """<!doctype html>
           model: document.querySelector("#chat-model").value,
           message,
           history,
-          execute: document.querySelector("#chat-execute").checked
+          execute: advancedEnabled() && document.querySelector("#chat-execute").checked
         })
       });
       const payload = await res.json();

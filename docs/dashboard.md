@@ -27,11 +27,12 @@ or permanently by switching the workspace to full mode with `birkin-codex mode u
 - Setup and skill config tabs for readiness verification.
 - Chat tab for message-oriented agent runs.
 - Warnings in a separate panel.
-- A job creation form that writes a dry-run record by default and can explicitly
-  execute the selected runner when the execute checkbox is enabled.
+- A `Try Safe Packet` form that writes a packet-only run record by default. The execute
+  checkbox is an advanced control, so the first screen stays packet-safe.
 
 Advanced mode adds auth, API, gateway, ledger, Telegram, approvals, verified learning,
-reliability, Morpheus, schedules, daemon status, and agent administration sections.
+reliability, Morpheus, schedules, daemon status, agent administration, and runner
+execution controls.
 
 ## Data Source
 

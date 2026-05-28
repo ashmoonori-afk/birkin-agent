@@ -6,6 +6,7 @@ import subprocess
 from typing import Any
 
 from .api import call_openai_compatible
+from .memory import recall_memory
 from .models import render_model_command, resolve_model_profile
 from .skills import SkillRecord, discover_skills, parse_frontmatter
 from .util import slugify, utc_stamp, write_json
@@ -125,6 +126,42 @@ def upstream_skill_body(workspace: Workspace, skill: SkillRecord) -> str:
     return f"\n\n## Exact Upstream SKILL.md\n\n{text}"
 
 
+def birkin_identity(agent: AgentRecord, prompt_style: str) -> str:
+    lines = [
+        "## Birkin Identity",
+        "",
+        "You are Birkin Codex, a lite-first local agent workspace that remembers through an Obsidian vault.",
+        "Act on the user's task directly, keep claims grounded in the run record, and do not say an action was executed unless it actually ran.",
+        "Prefer packet-safe inspection first; consequential shell, file, web, Telegram, and schedule actions must go through approvals.",
+        f"Active agent: `{agent.id}` - {agent.role}",
+        f"Prompt style: `{prompt_style}`.",
+    ]
+    if prompt_style == "cli-agent":
+        lines.append("A local CLI model is the backend for this run; use the memory digest and routed skill bodies below as Birkin context.")
+    return "\n".join(lines)
+
+
+def memory_digest(workspace: Workspace, task: str, limit: int = 5) -> tuple[str, list[dict[str, str]]]:
+    recalled = recall_memory(workspace, task, limit=limit)
+    if not recalled:
+        return "## Memory Digest\n\nNo matching memory notes found.", []
+    lines = ["## Memory Digest", ""]
+    for item in recalled:
+        title = str(item.get("title") or "")
+        note_type = str(item.get("type") or "")
+        confidence = str(item.get("confidence") or "")
+        version = str(item.get("version") or "")
+        snippet = str(item.get("snippet") or "").replace("\n", " ")
+        path = str(item.get("path") or "")
+        lines.append(f"- {title} [{note_type}, confidence={confidence}, version={version}]: {snippet} ({path})")
+    return "\n".join(lines), recalled
+
+
+def runner_type_for(workspace: Workspace, runner_key: str) -> str:
+    runner = workspace.config.get("runners", {}).get(runner_key) or {}
+    return str(runner.get("type") or "")
+
+
 def build_packet(
     workspace: Workspace,
     agent_id: str,
@@ -137,9 +174,24 @@ def build_packet(
     agent = get_agent(workspace, agent_id)
     profile = resolve_model_profile(workspace, model_name or agent.model, provider_name)
     runner_key = runner_name or profile.runner or agent.runner
+    runner_type = runner_type_for(workspace, runner_key)
+    prompt_style = "cli-agent" if runner_type == "command" or profile.runner == "local-cli" else "packet"
     skills = select_skills(workspace, agent)
+    include_bodies = include_skill_bodies or prompt_style == "cli-agent"
+    digest, recalled = memory_digest(workspace, task)
+    prompt_sections = [
+        "identity",
+        "promptFiles",
+        "memoryDigest",
+        "availableSkills",
+        "task",
+    ]
+    if include_bodies:
+        prompt_sections.append("skillBodies")
     packet = {
         "workspace": str(workspace.root),
+        "promptStyle": prompt_style,
+        "promptSections": prompt_sections,
         "agent": {
             "id": agent.id,
             "role": agent.role,
@@ -159,13 +211,16 @@ def build_packet(
         "prompt": "\n\n".join(
             part
             for part in [
+                birkin_identity(agent, prompt_style),
                 load_prompt_files(workspace),
+                digest,
                 compact_skill_catalog(skills),
                 "## Task\n\n" + task,
-                skill_bodies(workspace, skills) if include_skill_bodies else "",
+                skill_bodies(workspace, skills) if include_bodies else "",
             ]
             if part
         ),
+        "memory": recalled,
         "skills": [
             {
                 "name": skill.name,

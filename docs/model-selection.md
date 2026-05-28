@@ -1,6 +1,6 @@
 # Model Selection
 
-Scope date: 2026-05-27.
+Scope date: 2026-05-28.
 
 Birkin uses model profiles to keep model choice separate from agent roles. The default
 profile is `packet`, which never calls an external model.
@@ -50,6 +50,26 @@ birkin-codex model add my-local \
   --command-json '["my-model-cli","--model","{model}","-"]'
 ```
 
+When a local CLI profile executes, Birkin does not send a bare task string. It builds a
+prompt packet containing:
+
+- Birkin identity and safety boundaries.
+- Workspace prompt files.
+- Obsidian memory digest for the task.
+- Compact skill catalog.
+- Routed skill bodies, including upstream mirror bodies when applicable.
+- The task.
+
+This keeps Codex, Claude, or another configured CLI acting as Birkin while still letting
+that CLI use its own login store and internal tool loop.
+
+Inspect the exact packet before running a model:
+
+```sh
+birkin-codex agents packet builder --model codex-local --task "Plan a refactor" --format summary
+birkin-codex agents packet builder --model codex-local --task "Plan a refactor" --format prompt
+```
+
 ## API Profiles
 
 API model profiles use the `api` runner and point at an API profile with `apiProfile`:
@@ -91,3 +111,5 @@ birkin-codex model add local-api \
 - Commands are argv arrays, not shell strings.
 - Secrets should stay in the local CLI's own auth store or environment, not in `birkin.json`.
 - API keys are read from environment variables such as `OPENAI_API_KEY`.
+- `birkin-codex chat --dry-run` and `agents packet --format prompt` make zero model
+  calls and are the preferred debugging path for prompt packets.

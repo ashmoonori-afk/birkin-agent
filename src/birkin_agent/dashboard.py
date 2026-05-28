@@ -18,6 +18,7 @@ from .models import model_rows, validate_models
 from .morpheus import morpheus_status
 from .presets import is_lite
 from .reliability import budget_status, delivery_rows, health_checks, reliability_rows, replay_rows, silent_failure_warnings, trace_rows
+from .runtime_deps import validate_runtime_dependencies
 from .scheduler import daemon_status, schedule_rows
 from .skills import discover_skills, skill_config_rows, skill_rows, skill_safety_summary, validate_skills
 from .telegram import telegram_status, validate_telegram
@@ -122,6 +123,7 @@ def list_jobs(workspace: Workspace, limit: int = 50) -> list[dict[str, Any]]:
 def dashboard_data(workspace: Workspace) -> dict[str, Any]:
     experience = current_experience(workspace)
     doctor_errors, doctor_warnings = workspace.doctor()
+    runtime_errors, runtime_warnings = validate_runtime_dependencies(workspace)
     model_errors, model_warnings = validate_models(workspace)
     skill_errors, skill_warnings = validate_skills(workspace)
     agent_errors, agent_warnings = validate_agents(workspace)
@@ -133,6 +135,8 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
     warnings = warning_rows(
         doctor_errors,
         doctor_warnings,
+        runtime_errors,
+        runtime_warnings,
         model_errors,
         model_warnings,
         skill_errors,
@@ -207,6 +211,8 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
         workspace,
         doctor_errors,
         doctor_warnings,
+        runtime_errors,
+        runtime_warnings,
         model_errors,
         model_warnings,
         auth_errors,
@@ -284,6 +290,8 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
 def warning_rows(
     doctor_errors: list[str],
     doctor_warnings: list[str],
+    runtime_errors: list[str],
+    runtime_warnings: list[str],
     model_errors: list[str],
     model_warnings: list[str],
     skill_errors: list[str],
@@ -295,6 +303,8 @@ def warning_rows(
     for source, severity, values in [
         ("workspace", "critical", doctor_errors),
         ("workspace", "warning", doctor_warnings),
+        ("runtime", "critical", runtime_errors),
+        ("runtime", "warning", runtime_warnings),
         ("models", "critical", model_errors),
         ("models", "warning", model_warnings),
         ("skills", "critical", skill_errors),
@@ -327,6 +337,8 @@ def setup_dashboard_report(
     workspace: Workspace,
     doctor_errors: list[str],
     doctor_warnings: list[str],
+    runtime_errors: list[str],
+    runtime_warnings: list[str],
     model_errors: list[str],
     model_warnings: list[str],
     auth_errors: list[str],
@@ -360,6 +372,7 @@ def setup_dashboard_report(
     )
     rows = [
         setup_row("mode", [], [], mode_detail, "birkin-codex mode status"),
+        setup_row("runtime", runtime_errors, runtime_warnings, "Lite core has no runtime package dependencies.", "birkin-codex doctor"),
         setup_row("workspace", doctor_errors, doctor_warnings, "Workspace files, prompt files, and configured roots are present.", "birkin-codex doctor"),
         setup_row("models", model_errors, model_warnings, f"{len(models)} model profiles configured.", "birkin-codex model list"),
         setup_row("memory", memory_errors, memory_warnings, "Obsidian-backed memory capture is configured.", "birkin-codex memory status"),

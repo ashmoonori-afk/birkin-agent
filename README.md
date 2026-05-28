@@ -30,7 +30,7 @@ inspectable, and portable across Windows, macOS, and Linux.
 | Dashboard | Serves a chat-first dashboard at `http://127.0.0.1:8765`, with advanced operations hidden by default. |
 | Skills | Starts with 15 core skills enabled, while still indexing `SKILL.md` folders with precedence, gating, registry checks, safety metadata, and immutable upstream mirrors. |
 | Hermes/OpenClaw mirrors | Mirrors 90 Hermes skill directories and 57 OpenClaw skill directories, with 147 mirrored upstream skills and 0 missing directories. |
-| Model selection | Supports packet-only, local CLI, OpenAI-compatible API, and tool-agent profiles without code changes. |
+| Model selection | Supports packet-only, local CLI, OpenAI-compatible API, and tool-agent profiles without code changes; local CLI prompts include Birkin identity, memory digest, and routed skills. |
 | Auth/API/Gateway | Delegates local CLI OAuth to external tools, supports API-key profiles, and exposes a localhost/token-gated gateway. |
 | Memory OS | Stores typed, scoped, versioned Obsidian markdown notes with evidence, confidence, TTL, and append-only history. |
 | Verified Learning | Records evidence-backed learning events and proposal-mode changes with approve/reject/rollback commands. |
@@ -110,6 +110,9 @@ Everyday loop:
 birkin-codex
 birkin-codex setup wizard
 birkin-codex chat --message "Summarize this workspace" --model packet
+birkin-codex chat --dry-run --message "Summarize this workspace"
+birkin-codex agents packet chat --task "Summarize this workspace" --format summary
+birkin-codex agents packet chat --task "Summarize this workspace" --format prompt
 birkin-codex mode status
 birkin-codex model list
 birkin-codex model use codex-local
@@ -136,6 +139,7 @@ birkin-codex reliability budget
 birkin-codex skills validate
 birkin-codex skills config
 birkin-codex skills safety
+birkin-codex skills sync
 birkin-codex morpheus --dry-run
 ```
 
@@ -144,6 +148,12 @@ birkin-codex morpheus --dry-run
 - `birkin-codex` Python/pip CLI with Windows PowerShell and macOS/Linux shell scripts.
 - Lite default experience with `birkin-codex mode use full|lite`, a 15-skill core
   allowlist, quiet setup/doctor checks, and advanced dashboard tabs hidden until needed.
+- Runtime dependency validation that keeps the lite core free of package dependencies
+  beyond the Python standard library.
+- Debuggable prompt packets through `agents packet --format summary|prompt` and
+  `chat --dry-run`.
+- Local CLI runners that receive Birkin identity, Obsidian memory digest, compact skill
+  catalog, and routed skill bodies instead of a bare task string.
 - Dashboard with jobs, summaries, status, usage, warnings, approvals, learning proposals,
   reliability traces, health, budget, memory, ledger, gateway, Telegram, Morpheus, skills,
   models, API profiles, auth profiles, agents, and chat.
@@ -157,6 +167,8 @@ birkin-codex morpheus --dry-run
 - Approval/risk UX for safe, review, dangerous, external, and irreversible actions.
 - Skill safety rows with permissions, version, author/source, computed hash, tests,
   last-verified metadata, immutable upstream detection, and registry consistency checks.
+- Repo-managed `skills sync` status for the exact Hermes/OpenClaw mirrors, plus hot
+  reload by `SKILL.md` mtime and enabled/eligible skill selection.
 - Morpheus self-improvement that applies only high-evidence safe memory updates and
   turns weak evidence or skill changes into learning proposals.
 
@@ -186,6 +198,8 @@ birkin-codex morpheus --dry-run
   generated changes happen through custom skills or proposals.
 - Lower-friction first run: safe packet chat, lite skill selection, and optional advanced
   controls make the first success path smaller than the full control plane.
+- Better local CLI handoff: Codex, Claude, or any configured command sees Birkin context
+  and skills without Birkin needing to own that CLI's internal tool loop.
 
 ## Tradeoffs
 
@@ -213,6 +227,7 @@ birkin-codex doctor
 birkin-codex mode status
 birkin-codex skills validate
 birkin-codex skills config
+birkin-codex skills sync --json
 birkin-codex skills safety
 birkin-codex morpheus --dry-run
 birkin-codex reliability health

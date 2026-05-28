@@ -13,6 +13,7 @@ from .memory import memory_status, validate_memory
 from .models import model_rows, validate_models
 from .morpheus import morpheus_status
 from .presets import is_lite
+from .runtime_deps import validate_runtime_dependencies
 from .scheduler import schedule_rows
 from .skills import skill_config_rows, skill_rows, validate_skills
 from .telegram import telegram_status, validate_telegram
@@ -42,6 +43,15 @@ def setup_checks(workspace: Workspace, advanced: bool = False) -> list[SetupChec
         [],
         mode_detail,
         "birkin-codex mode status",
+    )
+    runtime_errors, runtime_warnings = validate_runtime_dependencies(workspace)
+    add_check(
+        rows,
+        "runtime",
+        runtime_errors,
+        runtime_warnings,
+        "Lite core has no runtime package dependencies.",
+        "birkin-codex doctor",
     )
     workspace_errors, workspace_warnings = workspace.doctor()
     add_check(

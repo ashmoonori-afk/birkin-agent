@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import shutil
 import sys
+from typing import Any
 
 from .agents import add_agent, agent_rows, build_packet, run_agent, validate_agents
 from .api import add_api_profile, api_rows, validate_api
@@ -39,6 +40,7 @@ from .models import add_model_profile, model_profile_map, model_rows, use_model_
 from .morpheus import run_morpheus
 from .presets import is_lite
 from .reliability import budget_status, health_checks, reliability_rows, trace_rows
+from .runtime_deps import validate_runtime_dependencies
 from .scheduler import daemon_status, run_daemon, schedule_rows
 from .setup import setup_report, setup_rows
 from .skills import create_skill, discover_skills, skill_config_rows, skill_rows, skill_safety_rows, validate_skills
@@ -121,6 +123,10 @@ def build_parser() -> argparse.ArgumentParser:
     skills_create.add_argument("--description", required=True)
     skills_create.add_argument("--group", default="custom")
     skills_create.set_defaults(func=cmd_skills_create)
+    skills_sync = skills_sub.add_parser("sync")
+    skills_sync.add_argument("--from", dest="source", default="")
+    skills_sync.add_argument("--json", action="store_true")
+    skills_sync.set_defaults(func=cmd_skills_sync)
     skills_enable = skills_sub.add_parser("enable")
     skills_enable.add_argument("name")
     skills_enable.set_defaults(func=cmd_skills_enable)
@@ -146,6 +152,7 @@ def build_parser() -> argparse.ArgumentParser:
     packet.add_argument("--provider")
     packet.add_argument("--runner")
     packet.add_argument("--include-skill-bodies", action="store_true")
+    packet.add_argument("--format", choices=["json", "prompt", "summary"], default="json")
     packet.set_defaults(func=cmd_agents_packet)
     run = agents_sub.add_parser("run")
     run.add_argument("id")
@@ -184,6 +191,7 @@ def build_parser() -> argparse.ArgumentParser:
     chat.add_argument("--model")
     chat.add_argument("--provider")
     chat.add_argument("--execute", action="store_true")
+    chat.add_argument("--dry-run", action="store_true", help="Force packet-safe mode and make no model call.")
     chat.add_argument("--interactive", "-i", action="store_true")
     chat.add_argument("--json", action="store_true")
     chat.set_defaults(func=cmd_chat)
@@ -495,6 +503,7 @@ def cmd_init(args: argparse.Namespace) -> int:
 def cmd_doctor(args: argparse.Namespace) -> int:
     workspace = ws()
     errors, warnings = workspace.doctor()
+    runtime_errors, runtime_warnings = validate_runtime_dependencies(workspace)
     model_errors, model_warnings = validate_models(workspace)
     skill_errors, skill_warnings = validate_skills(workspace)
     agent_errors, agent_warnings = validate_agents(workspace)
@@ -503,6 +512,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     gateway_errors, gateway_warnings = validate_gateway(workspace)
     memory_errors, memory_warnings = validate_memory(workspace)
     telegram_errors, telegram_warnings = validate_telegram(workspace)
+    errors.extend(runtime_errors)
     errors.extend(model_errors)
     errors.extend(skill_errors)
     errors.extend(agent_errors)
@@ -511,6 +521,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     errors.extend(gateway_errors)
     errors.extend(memory_errors)
     errors.extend(telegram_errors)
+    warnings.extend(runtime_warnings)
     warnings.extend(model_warnings)
     warnings.extend(skill_warnings)
     warnings.extend(agent_warnings)
@@ -1145,6 +1156,39 @@ def cmd_skills_create(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_skills_sync(args: argparse.Namespace) -> int:
+    workspace = ws()
+    config = {row["check"]: row for row in skill_config_rows(workspace)}
+    payload = {
+        "status": "ok",
+        "mode": "repo-managed",
+        "source": args.source,
+        "dryRun": True,
+        "detail": "Exact Hermes/OpenClaw mirrors are kept in this repository; sync is a non-mutating status check.",
+        "hotReload": "Skill discovery keys include SKILL.md mtimes and enabled/disabled selection.",
+        "eligibility": "Only enabled and eligible skills are injected into packets; gated skills remain inspectable.",
+        "upstreamMirror": config.get("upstream-mirror", {}),
+        "reflections": config.get("reflections", {}),
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    else:
+        print_table(
+            [
+                {
+                    "status": payload["status"],
+                    "mode": payload["mode"],
+                    "source": payload["source"] or "repo mirrors",
+                    "upstreamMirror": str(payload["upstreamMirror"].get("detail") or ""),
+                    "hotReload": "mtime cache",
+                    "eligibility": "enabled+eligible",
+                }
+            ],
+            ["status", "mode", "source", "upstreamMirror", "hotReload", "eligibility"],
+        )
+    return 0
+
+
 def cmd_skills_enable(args: argparse.Namespace) -> int:
     workspace = ws()
     skill_config = workspace.config.setdefault("skills", {})
@@ -1200,8 +1244,33 @@ def cmd_agents_packet(args: argparse.Namespace) -> int:
         provider_name=args.provider,
         runner_name=args.runner,
     )
-    print(json.dumps(packet, indent=2, ensure_ascii=False))
+    if args.format == "prompt":
+        print(packet["prompt"])
+    elif args.format == "summary":
+        print_packet_summary(packet)
+    else:
+        print(json.dumps(packet, indent=2, ensure_ascii=False))
     return 0
+
+
+def print_packet_summary(packet: dict[str, Any]) -> None:
+    prompt = str(packet.get("prompt") or "")
+    print_table(
+        [
+            {
+                "agent": str((packet.get("agent") or {}).get("id") or ""),
+                "model": str((packet.get("model") or {}).get("id") or ""),
+                "runner": str((packet.get("agent") or {}).get("runner") or ""),
+                "style": str(packet.get("promptStyle") or ""),
+                "sections": ",".join(str(item) for item in packet.get("promptSections") or []),
+                "skills": str(len(packet.get("skills") or [])),
+                "memory": str(len(packet.get("memory") or [])),
+                "estimatedTokens": str(max(1, (len(prompt) + 3) // 4) if prompt else 0),
+                "promptChars": str(len(prompt)),
+            }
+        ],
+        ["agent", "model", "runner", "style", "sections", "skills", "memory", "estimatedTokens", "promptChars"],
+    )
 
 
 def cmd_agents_run(args: argparse.Namespace) -> int:
@@ -1249,13 +1318,14 @@ def cmd_chat(args: argparse.Namespace) -> int:
             print("error: --json chat requires --message", file=sys.stderr)
             return 1
         return cmd_chat_interactive(args)
+    execute = False if args.dry_run else args.execute
     payload = run_chat(
         ws(),
         args.message,
         agent_id=args.agent,
         model_name=args.model,
         provider_name=args.provider,
-        execute=args.execute,
+        execute=execute,
     )
     if args.json:
         print(json.dumps(payload, indent=2, ensure_ascii=False))
@@ -1270,7 +1340,7 @@ def cmd_chat_interactive(args: argparse.Namespace) -> int:
     agent_id = args.agent
     model_name = args.model
     provider_name = args.provider
-    execute = bool(args.execute)
+    execute = bool(args.execute) and not bool(getattr(args, "dry_run", False))
     history: list[dict[str, str]] = []
 
     print("Birkin Codex")

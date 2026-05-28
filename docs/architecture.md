@@ -12,6 +12,9 @@ chat works in packet mode, advanced operator controls are available when needed,
 and skill changes are evidence-gated, consequential actions are approval-first, and
 runtime health is visible through the local dashboard.
 
+The lite core is intentionally standard-library-only at runtime. `pyproject.toml`
+keeps `project.dependencies` empty, and setup/doctor checks verify that policy.
+
 Birkin is not a fork of either project. It does not vendor their code or claim runtime
 compatibility with their private internals.
 
@@ -20,7 +23,8 @@ compatibility with their private internals.
 - `src/birkin_agent/skills.py`: indexes AgentSkills-compatible `SKILL.md` folders,
   frontmatter, precedence, enablement, and OpenClaw-style gates.
 - `src/birkin_agent/agents.py`: builds subagent prompt packets with per-agent skill
-  allowlists and writes auditable run records.
+  allowlists, Birkin identity, memory digest, and routed skill context, then writes
+  auditable run records.
 - `src/birkin_agent/models.py`: resolves Hermes-style model profiles, local CLI
   command templates, defaults, validation, and per-run overrides.
 - `src/birkin_agent/auth.py`: manages local CLI OAuth/auth profiles by delegating
@@ -29,6 +33,8 @@ compatibility with their private internals.
   through configured API profiles.
 - `src/birkin_agent/runtime.py`: runs the OpenAI-compatible tool-calling agent loop
   used by the `api-agent` model profile.
+- `src/birkin_agent/runtime_deps.py`: validates the zero-runtime-dependency policy for
+  the lite core.
 - `src/birkin_agent/approvals.py`: queues consequential shell, external web,
   Telegram, schedule, file-write, and file-delete actions with risk tier, evidence,
   resources, dry-run preview, and rollback hint.
@@ -71,6 +77,30 @@ compatibility with their private internals.
 - `skills/openclaw-reflections/`: one Birkin skill per OpenClaw upstream skill
   directory, pointing at exact mirrored files under `skills/upstream/openclaw/`.
 
+## Prompt Packets
+
+Every run builds a prompt packet with named sections:
+
+1. Birkin identity and safety boundary.
+2. Workspace prompt files such as `AGENTS.md`, `SOUL.md`, and `TOOLS.md`.
+3. Obsidian memory digest from keyword recall.
+4. Compact skill catalog with names, descriptions, and locations.
+5. The user task.
+6. Routed skill bodies when requested, and always for local CLI runners.
+
+Local CLI runners therefore receive Birkin identity, memory, and skills through stdin
+instead of a bare task string. Birkin still does not try to control the local CLI's
+internal tool loop; it gives the CLI enough context to act as Birkin while preserving the
+CLI's own auth store and tools.
+
+Debug commands:
+
+```sh
+birkin-codex agents packet chat --task "Explain this repo" --format summary
+birkin-codex agents packet chat --task "Explain this repo" --format prompt
+birkin-codex chat --dry-run --message "Explain this repo"
+```
+
 ## Skill Precedence
 
 Configured roots are checked in order:
@@ -82,6 +112,12 @@ Configured roots are checked in order:
 
 The first skill with a given `name` wins. Later duplicates are reported as shadowed.
 
+Skill discovery is hot-reload friendly: the cache key includes `SKILL.md` mtimes and the
+enabled/disabled selection state, so edited skills are rediscovered without a process
+restart. `birkin-codex skills sync` is a non-mutating status command for the repo-managed
+Hermes/OpenClaw exact mirrors; mirrored upstream files stay immutable and attribution is
+preserved.
+
 ## Safety Model
 
 - Default runner is `dry-run`.
@@ -89,6 +125,8 @@ The first skill with a given `name` wins. Later duplicates are reported as shado
 - Default experience mode is `lite`, which enables a 15-skill core allowlist and hides
   advanced dashboard tabs. `birkin-codex mode use full` restores all eligible skills and
   the full operator surface.
+- The lite runtime dependency policy is checked from `pyproject.toml`; non-empty
+  `project.dependencies` is treated as a setup/doctor error.
 - Real CLI or API execution requires an explicit model profile in `birkin.json`
   and `--execute` on the run command.
 - The `api-agent` runner can call structured tools. Consequential tools are

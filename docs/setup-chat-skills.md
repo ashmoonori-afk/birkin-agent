@@ -38,6 +38,7 @@ birkin-codex setup wizard
 
 The default setup report runs in lite mode. It checks:
 
+- Runtime dependency policy.
 - Workspace files and prompt files.
 - Model profiles.
 - Obsidian memory.
@@ -103,11 +104,23 @@ Packet-only chat:
 
 ```sh
 birkin-codex chat --message "Summarize this workspace" --model packet
+birkin-codex chat --dry-run --message "Summarize this workspace"
 ```
 
 Packet mode is the first-run success path. It creates a run record, recalls memory,
 captures the conversation, and explains how to switch to live execution without
 requiring API keys up front.
+
+Prompt packet debugging:
+
+```sh
+birkin-codex agents packet chat --task "Summarize this workspace" --format summary
+birkin-codex agents packet chat --task "Summarize this workspace" --format prompt
+```
+
+The summary format reports the agent, model, runner, prompt style, sections, routed
+skills, recalled memory count, estimated tokens, and prompt size. The prompt format
+prints the exact text sent to packet/API/local CLI runners.
 
 Executed chat through a configured model profile:
 
@@ -127,6 +140,8 @@ birkin-codex skills config
 birkin-codex skills config --json
 birkin-codex skills validate
 birkin-codex skills safety
+birkin-codex skills sync
+birkin-codex skills sync --json
 ```
 
 `skills config` reports:
@@ -141,6 +156,11 @@ birkin-codex skills safety
 - Exact upstream mirror completeness.
 - Registry consistency for canonical id, path, source, enabled state, and list/view agreement.
 - Skill safety summary for permission metadata, versions, hashes, and immutable upstream mirrors.
+
+`skills sync` is intentionally non-mutating in this repo. Birkin Codex already ships exact
+Hermes/OpenClaw mirrors under `skills/upstream`, and those upstream mirrors are immutable.
+The command reports mirror health, the hot-reload policy, and the enabled+eligible gating
+policy without copying over existing upstream files.
 
 This check is separate from `skills validate`, which still validates each `SKILL.md`
 frontmatter and body. `skills validate` also includes the config-level checks.

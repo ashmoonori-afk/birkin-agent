@@ -558,12 +558,20 @@ upstream implementations.
 
 ARCHITECTURE_DOC = r"""# Architecture
 
-Scope date: 2026-05-27.
+Scope date: 2026-05-28.
 
 Birkin is a lightweight Python implementation of a Hermes-style agent workspace. It uses
 Hermes Agent as the reference model for `SKILL.md` driven progressive disclosure and
 agent-managed skill evolution, and OpenClaw as the reference model for skill precedence,
 gating, operator safety, and broad bundled skill coverage.
+
+Birkin is now positioned as a lite-first verified-learning agent workspace: first-run
+chat works in packet mode, advanced operator controls are available when needed, memory
+and skill changes are evidence-gated, consequential actions are approval-first, and
+runtime health is visible through the local dashboard.
+
+The lite core is intentionally standard-library-only at runtime. `pyproject.toml`
+keeps `project.dependencies` empty, and setup/doctor checks verify that policy.
 
 Birkin is not a fork of either project. It does not vendor their code or claim runtime
 compatibility with their private internals.
@@ -573,13 +581,16 @@ compatibility with their private internals.
 - `src/birkin_agent/skills.py`: indexes AgentSkills-compatible `SKILL.md` folders,
   frontmatter, precedence, enablement, and OpenClaw-style gates.
 - `src/birkin_agent/agents.py`: builds subagent prompt packets with per-agent skill
-  allowlists and writes auditable run records.
+  allowlists, Birkin identity, memory digest, and routed skill context, then writes
+  auditable run records.
 - `src/birkin_agent/models.py`: resolves Hermes-style model profiles, local CLI
   command templates, defaults, validation, and per-run overrides.
 - `src/birkin_agent/auth.py`: manages local CLI OAuth/auth profiles by delegating
   login, logout, and status commands to external CLIs such as `codex`.
 - `src/birkin_agent/api.py`: calls OpenAI-compatible chat completions endpoints
   through configured API profiles.
+- `src/birkin_agent/runtime_deps.py`: validates the zero-runtime-dependency policy for
+  the lite core.
 - `src/birkin_agent/chat.py`: builds chat-mode tasks and writes normal run records
   through the selected agent and model profile.
 - `src/birkin_agent/setup.py`: produces Hermes-style setup checks across workspace,
@@ -599,6 +610,30 @@ compatibility with their private internals.
 - `skills/openclaw-reflections/`: one lightweight capability marker per OpenClaw
   upstream skill directory, generated from the referenced OpenClaw snapshot.
 
+## Prompt Packets
+
+Every run builds a prompt packet with named sections:
+
+1. Birkin identity and safety boundary.
+2. Workspace prompt files such as `AGENTS.md`, `SOUL.md`, and `TOOLS.md`.
+3. Obsidian memory digest from keyword recall.
+4. Compact skill catalog with names, descriptions, and locations.
+5. The user task.
+6. Routed skill bodies when requested, and always for local CLI runners.
+
+Local CLI runners therefore receive Birkin identity, memory, and skills through stdin
+instead of a bare task string. Birkin still does not try to control the local CLI's
+internal tool loop; it gives the CLI enough context to act as Birkin while preserving the
+CLI's own auth store and tools.
+
+Debug commands:
+
+```sh
+birkin-codex agents packet chat --task "Explain this repo" --format summary
+birkin-codex agents packet chat --task "Explain this repo" --format prompt
+birkin-codex chat --dry-run --message "Explain this repo"
+```
+
 ## Skill Precedence
 
 Configured roots are checked in order:
@@ -610,10 +645,21 @@ Configured roots are checked in order:
 
 The first skill with a given `name` wins. Later duplicates are reported as shadowed.
 
+Skill discovery is hot-reload friendly: the cache key includes `SKILL.md` mtimes and the
+enabled/disabled selection state, so edited skills are rediscovered without a process
+restart. `birkin-codex skills sync` is a non-mutating status command for the repo-managed
+Hermes/OpenClaw exact mirrors; mirrored upstream files stay immutable and attribution is
+preserved.
+
 ## Safety Model
 
 - Default runner is `dry-run`.
 - Default model profile is `packet`, which never calls an external model.
+- Default experience mode is `lite`, which enables a 15-skill core allowlist and hides
+  advanced dashboard tabs. `birkin-codex mode use full` restores all eligible skills and
+  the full operator surface.
+- The lite runtime dependency policy is checked from `pyproject.toml`; non-empty
+  `project.dependencies` is treated as a setup/doctor error.
 - Real CLI or API execution requires an explicit model profile in `birkin.json`
   and `--execute` on the run command.
 - Local CLI OAuth profiles call the external tool's own login store and do not write
@@ -754,9 +800,9 @@ or `codex-local` when the local `codex` CLI is available.
 
 DEFAULT_DASHBOARD_DOC = r"""# Dashboard
 
-Scope date: 2026-05-27.
+Scope date: 2026-05-28.
 
-The Birkin Web UI is an operator dashboard, not a landing page. It is served by the
+The Birkin Web UI is a chat-first dashboard, not a landing page. It is served by the
 Python standard library:
 
 ```sh
@@ -767,41 +813,72 @@ Open `http://127.0.0.1:8765`.
 
 ## First Screen
 
+In lite mode, the navigation emphasizes Dashboard, Chat, Setup, Jobs, Memory, Skills,
+and Warnings. Advanced sections are still available behind the `Show Advanced` toggle,
+or permanently by switching the workspace to full mode with `birkin-codex mode use full`.
+
 - Workspace summary.
 - Estimated usage from job prompt packets.
 - Running jobs.
 - Completed and failed job counts.
 - Recent job results with status, agent, model, task, result summary, usage, and timestamp.
 - Model profile count and a model selector for new jobs.
-- Auth, API, and gateway tabs for integration status.
+- Memory status and durable notes.
 - Setup and skill config tabs for readiness verification.
 - Chat tab for message-oriented agent runs.
 - Warnings in a separate panel.
-- A job creation form that writes a dry-run record by default and can explicitly
-  execute the selected runner when the execute checkbox is enabled.
+- A `Try Safe Packet` form that writes a packet-only run record by default. The execute
+  checkbox is an advanced control, so the first screen stays packet-safe.
+
+Advanced mode adds auth, API, gateway, ledger, Telegram, approvals, verified learning,
+reliability, Morpheus, schedules, daemon status, agent administration, and runner
+execution controls.
 
 ## Data Source
 
 The dashboard reads:
 
 - `runs/*.json` for job history, summaries, status, and usage.
+- `usage/ledger.jsonl` for ledger totals and recent usage rows.
+- The configured Obsidian vault for memory status.
 - `skills/**/SKILL.md` for skill status and gating warnings.
 - `birkin.json` for agents, models, runners, auth profiles, API profiles, gateway
   config, and allowlists.
 - `/api/chat` for chat messages through the selected agent and model profile.
+- `/api/approvals` for approval list/approve/reject actions.
+- `/api/learning` for learning proposal list/approve/reject actions.
+- `learning/events.jsonl` and `learning/proposals/` for verified-learning state.
+- `reliability/events.jsonl` for trace, delivery, and reliability log rows.
+- `/api/morpheus` for manual Morpheus dry-runs from the dashboard.
 - `/api/status` for setup and skill config status shown in the dashboard tabs.
 - `memory/`, `reviews/`, and `runs/` for improvement signals.
 
 ## Warning Model
 
-Warnings are separate from job results. They include workspace doctor warnings, skill
-validation warnings, model profile warnings, auth/API/gateway warnings, agent allowlist
-warnings, and gated skills such as missing environment variables or missing config."""
+Warnings are separate from job results. In lite mode, optional auth/API/gateway/Telegram
+warnings are hidden so first-run success is not blocked by integrations the user has not
+chosen yet. Full mode and `birkin-codex doctor --advanced` include those warnings.
+
+Visible warnings include workspace doctor warnings, skill validation warnings, model
+profile warnings, pending approvals, pending learning proposals, budget warnings,
+delivery failures, agent allowlist warnings, and enabled gated skills such as missing
+environment variables or missing config.
+
+## Advanced Sections
+
+The advanced sections answer operational questions quickly:
+
+- What is running now?
+- What did the latest job return?
+- Which action needs approval?
+- Which learning proposal would change memory or skills?
+- Did Telegram, gateway, Morpheus, memory, ledger, model/API profiles, or delivery fail?
+- How close is the workspace to configured per-run, daily, or monthly token budgets?"""
 
 
 MODEL_SELECTION_DOC = r"""# Model Selection
 
-Scope date: 2026-05-27.
+Scope date: 2026-05-28.
 
 Birkin uses model profiles to keep model choice separate from agent roles. The default
 profile is `packet`, which never calls an external model.
@@ -851,6 +928,26 @@ birkin-codex model add my-local \
   --command-json '["my-model-cli","--model","{model}","-"]'
 ```
 
+When a local CLI profile executes, Birkin does not send a bare task string. It builds a
+prompt packet containing:
+
+- Birkin identity and safety boundaries.
+- Workspace prompt files.
+- Obsidian memory digest for the task.
+- Compact skill catalog.
+- Routed skill bodies, including upstream mirror bodies when applicable.
+- The task.
+
+This keeps Codex, Claude, or another configured CLI acting as Birkin while still letting
+that CLI use its own login store and internal tool loop.
+
+Inspect the exact packet before running a model:
+
+```sh
+birkin-codex agents packet builder --model codex-local --task "Plan a refactor" --format summary
+birkin-codex agents packet builder --model codex-local --task "Plan a refactor" --format prompt
+```
+
 ## API Profiles
 
 API model profiles use the `api` runner and point at an API profile with `apiProfile`:
@@ -891,7 +988,9 @@ birkin-codex model add local-api \
 - Model profiles do not execute unless `birkin-codex agents run --execute` is used.
 - Commands are argv arrays, not shell strings.
 - Secrets should stay in the local CLI's own auth store or environment, not in `birkin.json`.
-- API keys are read from environment variables such as `OPENAI_API_KEY`."""
+- API keys are read from environment variables such as `OPENAI_API_KEY`.
+- `birkin-codex chat --dry-run` and `agents packet --format prompt` make zero model
+  calls and are the preferred debugging path for prompt packets."""
 
 
 AUTH_API_GATEWAY_DOC = r"""# Auth, API, and Gateway
@@ -1038,7 +1137,7 @@ reports a warning."""
 
 SETUP_CHAT_SKILLS_DOC = r"""# Setup, Chat, and Skill Config
 
-Scope date: 2026-05-27.
+Scope date: 2026-05-28.
 
 Birkin includes Hermes-style setup checks, an interactive chat surface, and skill
 configuration verification.
@@ -1071,21 +1170,45 @@ Run the setup check before using real model execution:
 birkin-codex setup
 birkin-codex setup --json
 birkin-codex setup check
+birkin-codex setup wizard
 ```
 
-The setup report checks:
+The default setup report runs in lite mode. It checks:
 
+- Runtime dependency policy.
 - Workspace files and prompt files.
 - Model profiles.
-- Local CLI auth profiles.
-- OpenAI-compatible API profiles.
-- Gateway config.
+- Obsidian memory.
 - Skill validation.
 - Agent allowlists.
 - Chat agent availability.
 
-`OPENAI_API_KEY` is reported as a warning when the default OpenAI-compatible API profile
-is configured but the environment variable is not set.
+Advanced setup checks are available when the user is ready to connect integrations:
+
+```sh
+birkin-codex setup --advanced
+birkin-codex doctor --advanced
+birkin-codex mode use full
+```
+
+Advanced checks add local CLI auth profiles, OpenAI-compatible API profiles, gateway
+config, Telegram onboarding, approval queues, Morpheus, schedules, and usage ledger
+status. `OPENAI_API_KEY` is reported as a warning only in advanced/full checks when the
+default OpenAI-compatible API profile is configured but the environment variable is not
+set.
+
+## Experience Mode
+
+Birkin starts in `lite` mode:
+
+```sh
+birkin-codex mode status
+birkin-codex mode use full
+birkin-codex mode use lite
+```
+
+`lite` mode keeps a 15-skill core allowlist and hides advanced dashboard tabs by default.
+`full` mode enables all eligible discovered skills and shows the full operator surface.
 
 ## Chat
 
@@ -1107,6 +1230,8 @@ Interactive commands:
 - `/setup` shows readiness checks.
 - `/dashboard` shows the local dashboard command and URL.
 - `/skills` shows skill configuration checks.
+- `/mode lite` switches back to the small default surface.
+- `/mode full` enables all eligible skills and advanced controls.
 - `/model ID` switches the model profile for the current chat.
 - `/execute on` allows the selected runner to execute.
 - `/execute off` returns to packet-only safe mode.
@@ -1116,11 +1241,23 @@ Packet-only chat:
 
 ```sh
 birkin-codex chat --message "Summarize this workspace" --model packet
+birkin-codex chat --dry-run --message "Summarize this workspace"
 ```
 
 Packet mode is the first-run success path. It creates a run record, recalls memory,
 captures the conversation, and explains how to switch to live execution without
 requiring API keys up front.
+
+Prompt packet debugging:
+
+```sh
+birkin-codex agents packet chat --task "Summarize this workspace" --format summary
+birkin-codex agents packet chat --task "Summarize this workspace" --format prompt
+```
+
+The summary format reports the agent, model, runner, prompt style, sections, routed
+skills, recalled memory count, estimated tokens, and prompt size. The prompt format
+prints the exact text sent to packet/API/local CLI runners.
 
 Executed chat through a configured model profile:
 
@@ -1139,6 +1276,9 @@ Run:
 birkin-codex skills config
 birkin-codex skills config --json
 birkin-codex skills validate
+birkin-codex skills safety
+birkin-codex skills sync
+birkin-codex skills sync --json
 ```
 
 `skills config` reports:
@@ -1150,9 +1290,20 @@ birkin-codex skills validate
 - Shadowed duplicate skill files.
 - Enabled/disabled selection state.
 - Hermes and OpenClaw reflection counts.
+- Exact upstream mirror completeness.
+- Registry consistency for canonical id, path, source, enabled state, and list/view agreement.
+- Skill safety summary for permission metadata, versions, hashes, and immutable upstream mirrors.
+
+`skills sync` is intentionally non-mutating in this repo. Birkin Codex already ships exact
+Hermes/OpenClaw mirrors under `skills/upstream`, and those upstream mirrors are immutable.
+The command reports mirror health, the hot-reload policy, and the enabled+eligible gating
+policy without copying over existing upstream files.
 
 This check is separate from `skills validate`, which still validates each `SKILL.md`
-frontmatter and body. `skills validate` also includes the config-level checks."""
+frontmatter and body. `skills validate` also includes the config-level checks.
+
+`skills safety` lists per-skill permission manifest, version, author/source, computed
+hash, tests, last verified value, and whether the skill is immutable."""
 
 
 MEMORY_LEDGER_TELEGRAM_DOC = r"""# Memory, Ledger, and Telegram

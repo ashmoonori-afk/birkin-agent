@@ -99,12 +99,30 @@ def load_prompt_files(workspace: Workspace) -> str:
     return "\n\n".join(parts)
 
 
-def skill_bodies(skills: list[SkillRecord]) -> str:
+def skill_bodies(workspace: Workspace, skills: list[SkillRecord]) -> str:
     bodies: list[str] = []
     for skill in skills:
         _frontmatter, body, _issues = parse_frontmatter(skill.path)
-        bodies.append(f"## Skill: {skill.name}\n\n{body.strip()}")
+        upstream_body = upstream_skill_body(workspace, skill)
+        bodies.append(f"## Skill: {skill.name}\n\n{body.strip()}{upstream_body}")
     return "\n\n".join(bodies)
+
+
+def upstream_skill_body(workspace: Workspace, skill: SkillRecord) -> str:
+    birkin = skill.frontmatter.get("metadata") if isinstance(skill.frontmatter.get("metadata"), dict) else {}
+    birkin_block = birkin.get("birkin") if isinstance(birkin.get("birkin"), dict) else {}
+    mirror = str(birkin_block.get("upstreamMirror") or "")
+    if not mirror:
+        return ""
+    mirror_path = workspace.rel(mirror) if not Path(mirror).is_absolute() else Path(mirror)
+    upstream = mirror_path / "SKILL.md"
+    if not upstream.exists():
+        return f"\n\n## Upstream Skill Body\n\nMissing upstream mirror: `{mirror}`"
+    try:
+        text = upstream.read_text(encoding="utf-8").strip()
+    except OSError:
+        return f"\n\n## Upstream Skill Body\n\nCould not read upstream mirror: `{mirror}`"
+    return f"\n\n## Exact Upstream SKILL.md\n\n{text}"
 
 
 def build_packet(
@@ -144,7 +162,7 @@ def build_packet(
                 load_prompt_files(workspace),
                 compact_skill_catalog(skills),
                 "## Task\n\n" + task,
-                skill_bodies(skills) if include_skill_bodies else "",
+                skill_bodies(workspace, skills) if include_skill_bodies else "",
             ]
             if part
         ),
@@ -173,21 +191,27 @@ def save_run_record(
     path = workspace.rel("runs", f"{utc_stamp()}_{slugify(agent_id)}.json")
     usage = packet_usage(packet, result)
     summary = summarize_result(status, packet, result or {})
-    write_json(
-        path,
-        {
-            "timestamp": utc_stamp(),
-            "agent": agent_id,
-            "runner": runner,
-            "model": packet.get("model") or {},
-            "task": task,
-            "status": status,
-            "summary": summary,
-            "usage": usage,
-            "packet": packet,
-            "result": result or {},
-        },
-    )
+    payload = {
+        "timestamp": utc_stamp(),
+        "agent": agent_id,
+        "runner": runner,
+        "model": packet.get("model") or {},
+        "task": task,
+        "status": status,
+        "summary": summary,
+        "usage": usage,
+        "packet": packet,
+        "result": result or {},
+    }
+    write_json(path, payload)
+    try:
+        from .ledger import append_ledger_entry
+        from .memory import capture_run_memory
+
+        append_ledger_entry(workspace, path, payload)
+        capture_run_memory(workspace, path, payload)
+    except Exception:
+        pass
     return path
 
 

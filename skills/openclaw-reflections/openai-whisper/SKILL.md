@@ -1,27 +1,21 @@
-﻿---
+---
 name: openclaw-openai-whisper
-description: Lightweight Birkin reflection of the OpenClaw openai-whisper skill.
-version: 0.1.0
+description: "Local speech-to-text with the Whisper CLI (no API key)."
+version: 0.2.0
 platforms: [windows, linux, macos]
-metadata: {"openclaw":{"upstreamSkill":"openai-whisper","alwaysInclude":true,"upstreamCommit":"8d6b5997375890608a1bb46a08c1f5a819443d59"},"hermes":{"tags":["openclaw","reflected-skill"],"category":"openclaw-reflection"}}
+metadata: {"birkin":{"alwaysInclude":true,"capabilityLevel":"upstream-skill","upstreamMirror":"skills/upstream/openclaw/openai-whisper"},"openclaw":{"category":"openclaw","tags":["openclaw","bundled-skill","upstream-skill"],"upstreamCommit":"d00e764e66555320ac75f048c2767ba5877de0a9","upstreamPath":"skills/openai-whisper","upstreamSkill":"openai-whisper"},"hermes":{"tags":["openclaw","bundled-skill","upstream-skill"],"category":"openclaw"}}
 ---
 
-# OpenClaw Reflection: openai whisper
+# Openclaw Upstream Skill: openai-whisper
 
-## When to Use
+## Birkin Integration
 
-Use this skill when a task asks for the OpenClaw `openai-whisper` capability or when a Birkin agent needs to route work to a compatible local CLI, integration, or future adapter.
+The exact upstream skill directory is mirrored at `skills/upstream/openclaw/openai-whisper`.
 
-## Procedure
-
-1. Treat this as a lightweight capability marker, not a vendored OpenClaw implementation.
-2. Check whether a native Birkin skill already covers the same capability.
-3. If a local CLI, app, token, or account is required, verify it before acting.
-4. Keep credentials out of run records and skill files.
-5. Record a concrete adapter plan before turning this reflection into an executable skill.
+When a run asks to include skill bodies, Birkin loads the mirrored upstream `SKILL.md` from that directory.
 
 ## Verification
 
-- The task maps to the upstream OpenClaw `openai-whisper` capability.
-- Any required local tool, account, or service is explicitly available.
-- A run record or review note states whether execution was direct, dry-run, or deferred.
+- Upstream source: `skills/openai-whisper`
+- Upstream commit: `d00e764e66555320ac75f048c2767ba5877de0a9`
+- The mirrored directory contains the exact upstream files fetched by `tools/sync_upstream_skills.py`.

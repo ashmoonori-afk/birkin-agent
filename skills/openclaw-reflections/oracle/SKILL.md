@@ -1,27 +1,21 @@
-﻿---
+---
 name: openclaw-oracle
-description: Lightweight Birkin reflection of the OpenClaw oracle skill.
-version: 0.1.0
+description: "Oracle CLI second-model review/debug/refactor/design with selected files, dry-run token checks, API or browser engine."
+version: 0.2.0
 platforms: [windows, linux, macos]
-metadata: {"openclaw":{"upstreamSkill":"oracle","alwaysInclude":true,"upstreamCommit":"8d6b5997375890608a1bb46a08c1f5a819443d59"},"hermes":{"tags":["openclaw","reflected-skill"],"category":"openclaw-reflection"}}
+metadata: {"birkin":{"alwaysInclude":true,"capabilityLevel":"upstream-skill","upstreamMirror":"skills/upstream/openclaw/oracle"},"openclaw":{"category":"openclaw","tags":["openclaw","bundled-skill","upstream-skill"],"upstreamCommit":"d00e764e66555320ac75f048c2767ba5877de0a9","upstreamPath":"skills/oracle","upstreamSkill":"oracle"},"hermes":{"tags":["openclaw","bundled-skill","upstream-skill"],"category":"openclaw"}}
 ---
 
-# OpenClaw Reflection: oracle
+# Openclaw Upstream Skill: oracle
 
-## When to Use
+## Birkin Integration
 
-Use this skill when a task asks for the OpenClaw `oracle` capability or when a Birkin agent needs to route work to a compatible local CLI, integration, or future adapter.
+The exact upstream skill directory is mirrored at `skills/upstream/openclaw/oracle`.
 
-## Procedure
-
-1. Treat this as a lightweight capability marker, not a vendored OpenClaw implementation.
-2. Check whether a native Birkin skill already covers the same capability.
-3. If a local CLI, app, token, or account is required, verify it before acting.
-4. Keep credentials out of run records and skill files.
-5. Record a concrete adapter plan before turning this reflection into an executable skill.
+When a run asks to include skill bodies, Birkin loads the mirrored upstream `SKILL.md` from that directory.
 
 ## Verification
 
-- The task maps to the upstream OpenClaw `oracle` capability.
-- Any required local tool, account, or service is explicitly available.
-- A run record or review note states whether execution was direct, dry-run, or deferred.
+- Upstream source: `skills/oracle`
+- Upstream commit: `d00e764e66555320ac75f048c2767ba5877de0a9`
+- The mirrored directory contains the exact upstream files fetched by `tools/sync_upstream_skills.py`.

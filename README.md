@@ -28,12 +28,15 @@ implementation small and inspectable.
 | Area | Birkin behavior |
 | --- | --- |
 | Skills | Indexes AgentSkills-style `SKILL.md` folders with metadata, precedence, validation, and gating. |
-| Hermes coverage | Reflects all 90 Hermes bundled skill directories as lightweight `hermes-<name>` capability markers. |
-| OpenClaw coverage | Reflects all 57 OpenClaw upstream skill directories as lightweight `openclaw-<name>` capability markers. |
+| Hermes coverage | Mirrors all 90 Hermes bundled skill directories and exposes `hermes-<name>` skills with exact upstream source pointers. |
+| OpenClaw coverage | Mirrors all 57 OpenClaw upstream skill directories and exposes `openclaw-<name>` skills with exact upstream source pointers. |
 | Model selection | Provides Hermes-style model profiles for packet-only runs, Codex CLI, OpenAI-compatible APIs, or any local CLI argv template. |
 | Auth | Delegates local CLI OAuth/login state to tools such as `codex` without storing tokens in Birkin. |
 | API | Calls OpenAI-compatible chat completions endpoints when an API model profile is selected and executed. |
 | Gateway | Serves a local machine-facing HTTP gateway for status, auth, model, API, and run operations. |
+| Memory | Writes conversations, feedback, failed runs, and run summaries to an Obsidian-compatible vault and recalls matching notes into chat prompts. |
+| Ledger | Maintains `usage/ledger.jsonl` for run status, estimated tokens, provider tokens, and cost fields. |
+| Telegram | Provides setup onboarding and test-send support for Telegram bot notifications. |
 | Setup | Reports Hermes-style readiness across workspace, models, auth, API, gateway, skills, agents, and chat. |
 | Chat | Provides a dashboard chat tab, one-shot `birkin-codex chat`, and Hermes-style `birkin-codex` interactive chat. |
 | Subagents | Builds role-scoped prompt packets for planner, builder, reviewer, researcher, and operator agents. |
@@ -113,6 +116,7 @@ On Windows, use `.venv\Scripts\activate` and then the same `pip install -e .` fl
 birkin-codex
 birkin-codex doctor
 birkin-codex setup
+birkin-codex setup wizard
 birkin-codex skills list
 birkin-codex skills validate
 birkin-codex skills config
@@ -121,6 +125,9 @@ birkin-codex model list
 birkin-codex model use codex-local
 birkin-codex auth list
 birkin-codex api list
+birkin-codex memory status
+birkin-codex ledger summary
+birkin-codex telegram status
 birkin-codex gateway routes
 birkin-codex agents list
 birkin-codex agents packet planner --model packet --task "Plan the work"
@@ -145,6 +152,7 @@ It shows:
 - Estimated prompt usage.
 - Selectable model profiles.
 - Auth, API, and gateway status.
+- Obsidian memory, Telegram onboarding, and usage ledger status.
 - Setup readiness and skill config status.
 - Chat messages through the selected agent and model.
 - Enabled and gated skills.
@@ -169,8 +177,8 @@ Birkin ships with:
 - Tool skills for filesystem, shell, web research, browser automation, scheduling, and messaging gateways.
 - Development skills for code review, GitHub, documentation, data analysis, and security audit.
 - Creative and integration skills.
-- 90 Hermes bundled skill reflections under `skills/hermes-reflections/`.
-- 57 OpenClaw reflection skills under `skills/openclaw-reflections/`.
+- 90 Hermes bundled skill reflections under `skills/hermes-reflections/`, backed by exact mirrored source under `skills/upstream/hermes/`.
+- 57 OpenClaw reflection skills under `skills/openclaw-reflections/`, backed by exact mirrored source under `skills/upstream/openclaw/`.
 
 See [Hermes Skill Reflection Map](docs/hermes-skill-map.md) and
 [OpenClaw Skill Reflection Map](docs/openclaw-skill-map.md).
@@ -256,6 +264,39 @@ birkin-codex gateway run --port 8770
 
 See [Auth, API, and Gateway](docs/auth-api-gateway.md).
 
+## Memory, Ledger, and Telegram
+
+Birkin uses an Obsidian-compatible markdown vault for durable memory. By default it
+writes inside `memory/obsidian-vault`, which can be opened as an Obsidian vault or
+changed with:
+
+```sh
+birkin-codex memory set-vault /path/to/vault --allow-external
+birkin-codex memory record --kind feedback --text "USER_CORRECTION: prefer short Korean status updates."
+birkin-codex memory recall "Korean status updates"
+```
+
+Each run appends a ledger entry:
+
+```sh
+birkin-codex ledger summary
+birkin-codex ledger list
+```
+
+Telegram onboarding records the bot token environment variable and chat id without
+storing the token:
+
+```sh
+birkin-codex telegram setup --chat-id 123456 --token-env TELEGRAM_BOT_TOKEN --enable
+birkin-codex telegram test --message "Birkin is connected."
+```
+
+The first-run wizard can configure model, memory, and Telegram in one pass:
+
+```sh
+birkin-codex setup wizard
+```
+
 ## Setup, Chat, and Skill Config
 
 Hermes-style readiness checks:
@@ -292,18 +333,19 @@ See [Setup, Chat, and Skill Config](docs/setup-chat-skills.md).
 - Gateway-ready: a local HTTP surface can drive runs and status checks from other tools.
 - Setup-visible: readiness checks expose incomplete auth, API, gateway, skills, agent, or chat configuration.
 - Chat-ready: dashboard and CLI chat reuse the same auditable run records as other agent jobs.
-- Hermes-aware: all bundled Hermes skill directories are represented as Birkin capability markers.
-- OpenClaw-aware: every upstream OpenClaw skill directory is represented as a Birkin capability marker.
+- Memory-backed: chat and run records can be written to an Obsidian vault and recalled into later chat prompts.
+- Ledger-backed: every run records estimated usage and provider usage fields in `usage/ledger.jsonl`.
+- Hermes-aware: all bundled Hermes skill directories are mirrored and represented as Birkin skills.
+- OpenClaw-aware: every upstream OpenClaw skill directory is mirrored and represented as a Birkin skill.
 - Dashboard-first operations: job status, result summaries, usage, and warnings are visible immediately.
 
 ## Tradeoffs
 
-- Not a drop-in Hermes replacement: no built-in provider setup wizard, Honcho user model, or cloud terminal backend.
-- Not a drop-in OpenClaw replacement: reflection skills are routing markers unless a local adapter is implemented.
-- Hermes and OpenClaw reflections are not vendored upstream implementations; they are source-linked capability maps.
+- Not a drop-in Hermes replacement: no Honcho user model, cloud terminal backend, or scheduler worker yet.
+- Not a drop-in OpenClaw replacement: mirrored upstream skills still depend on the local tools and credentials they describe.
 - No model calls by default: you must choose a local CLI or API model profile and execute explicitly before real model execution.
 - Gateway auth is intentionally small: use the local token gate or bind to localhost for operator workflows.
-- Usage is estimated from prompt text and run output, not provider billing APIs.
+- Ledger cost is zero until provider-specific pricing is configured; provider token fields are captured when the API returns them.
 - macOS script is included, but this repository was initially verified from Windows; macOS should be tested on a real Mac before release claims beyond CLI portability.
 
 ## Reference Points
@@ -314,9 +356,9 @@ Birkin was shaped by these upstream ideas:
 - Hermes model docs: terminal model setup plus per-run model override, adapted here as local CLI and API profiles.
 - Hermes auth, proxy, and gateway commands: adapted here as local CLI auth profiles, OpenAI-compatible API execution, and a local HTTP gateway.
 - Hermes skills docs: `SKILL.md` as procedural memory with progressive disclosure.
-- Hermes `skills/`: 90 bundled skill directories reflected as Birkin capability markers.
+- Hermes `skills/`: 90 bundled skill directories mirrored under `skills/upstream/hermes/`.
 - OpenClaw README themes: local-first workspace, multi-agent routing, security defaults, channels, canvas, and skills.
-- OpenClaw `skills/`: 57 upstream skill directories reflected as Birkin capability markers.
+- OpenClaw `skills/`: 57 upstream skill directories mirrored under `skills/upstream/openclaw/`.
 
 Local reference notes are in [docs/reference-notes.md](docs/reference-notes.md).
 
@@ -325,16 +367,23 @@ Local reference notes are in [docs/reference-notes.md](docs/reference-notes.md).
 ```sh
 python -m unittest discover -s tests
 python -m compileall -q src tests
+python -m pip install -e .
 birkin-codex doctor
 birkin-codex setup
 birkin-codex skills validate
 birkin-codex skills config
+birkin-codex memory status
+birkin-codex ledger summary
+birkin-codex telegram status
 ```
 
 Current snapshot:
 
-- Unit tests: 15 passed.
-- Dashboard smoke check: dashboard status API reported setup status, 8 skill config rows, and chat/setup tabs in the served HTML.
+- Unit tests: 18 passed.
+- Upstream skill mirror check: 147 mirrored upstream skills, 0 missing directories.
+- Memory smoke check: packet chat wrote Obsidian-compatible notes and recall found them.
+- Ledger smoke check: packet chat appended a ledger row with estimated tokens.
+- Dashboard smoke check: dashboard status API reported setup status, 9 skill config rows, and chat/setup/memory/ledger/telegram tabs in the served HTML.
 - Chat smoke check: `POST /api/chat` returned packet-only status with a reply and run record.
 - Gateway smoke check: `GET /health` returned `ok` and `GET /api/setup` returned setup status.
 - Code review note: [reviews/2026-05-27-setup-chat-skills-review.md](reviews/2026-05-27-setup-chat-skills-review.md).
@@ -346,6 +395,7 @@ Current snapshot:
 - [macOS usage](docs/macos.md)
 - [Model selection](docs/model-selection.md)
 - [Auth, API, and Gateway](docs/auth-api-gateway.md)
+- [Memory, Ledger, and Telegram](docs/memory-ledger-telegram.md)
 - [Setup, Chat, and Skill Config](docs/setup-chat-skills.md)
 - [Hermes skill map](docs/hermes-skill-map.md)
 - [OpenClaw skill map](docs/openclaw-skill-map.md)

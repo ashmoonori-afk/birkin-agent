@@ -1,0 +1,1037 @@
+{
+  "generatedBy": "tools/sync_upstream_skills.py",
+  "hermesCommit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2",
+  "openclawCommit": "d00e764e66555320ac75f048c2767ba5877de0a9",
+  "total": 147,
+  "skills": [
+    {
+      "source": "hermes",
+      "name": "apple-notes",
+      "category": "apple",
+      "path": "skills/apple/apple-notes",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "apple-reminders",
+      "category": "apple",
+      "path": "skills/apple/apple-reminders",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "findmy",
+      "category": "apple",
+      "path": "skills/apple/findmy",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "imessage",
+      "category": "apple",
+      "path": "skills/apple/imessage",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "macos-computer-use",
+      "category": "apple",
+      "path": "skills/apple/macos-computer-use",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "claude-code",
+      "category": "autonomous-ai-agents",
+      "path": "skills/autonomous-ai-agents/claude-code",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "codex",
+      "category": "autonomous-ai-agents",
+      "path": "skills/autonomous-ai-agents/codex",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "hermes-agent",
+      "category": "autonomous-ai-agents",
+      "path": "skills/autonomous-ai-agents/hermes-agent",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "kanban-codex-lane",
+      "category": "autonomous-ai-agents",
+      "path": "skills/autonomous-ai-agents/kanban-codex-lane",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "opencode",
+      "category": "autonomous-ai-agents",
+      "path": "skills/autonomous-ai-agents/opencode",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "architecture-diagram",
+      "category": "creative",
+      "path": "skills/creative/architecture-diagram",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "ascii-art",
+      "category": "creative",
+      "path": "skills/creative/ascii-art",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "ascii-video",
+      "category": "creative",
+      "path": "skills/creative/ascii-video",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "baoyu-article-illustrator",
+      "category": "creative",
+      "path": "skills/creative/baoyu-article-illustrator",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "baoyu-comic",
+      "category": "creative",
+      "path": "skills/creative/baoyu-comic",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "baoyu-infographic",
+      "category": "creative",
+      "path": "skills/creative/baoyu-infographic",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "claude-design",
+      "category": "creative",
+      "path": "skills/creative/claude-design",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "comfyui",
+      "category": "creative",
+      "path": "skills/creative/comfyui",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "creative-ideation",
+      "category": "creative",
+      "path": "skills/creative/creative-ideation",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "design-md",
+      "category": "creative",
+      "path": "skills/creative/design-md",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "excalidraw",
+      "category": "creative",
+      "path": "skills/creative/excalidraw",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "humanizer",
+      "category": "creative",
+      "path": "skills/creative/humanizer",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "manim-video",
+      "category": "creative",
+      "path": "skills/creative/manim-video",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "p5js",
+      "category": "creative",
+      "path": "skills/creative/p5js",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "pixel-art",
+      "category": "creative",
+      "path": "skills/creative/pixel-art",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "popular-web-designs",
+      "category": "creative",
+      "path": "skills/creative/popular-web-designs",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "pretext",
+      "category": "creative",
+      "path": "skills/creative/pretext",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "sketch",
+      "category": "creative",
+      "path": "skills/creative/sketch",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "songwriting-and-ai-music",
+      "category": "creative",
+      "path": "skills/creative/songwriting-and-ai-music",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "touchdesigner-mcp",
+      "category": "creative",
+      "path": "skills/creative/touchdesigner-mcp",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "jupyter-live-kernel",
+      "category": "data-science",
+      "path": "skills/data-science/jupyter-live-kernel",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "kanban-orchestrator",
+      "category": "devops",
+      "path": "skills/devops/kanban-orchestrator",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "kanban-worker",
+      "category": "devops",
+      "path": "skills/devops/kanban-worker",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "webhook-subscriptions",
+      "category": "devops",
+      "path": "skills/devops/webhook-subscriptions",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "dogfood",
+      "category": "dogfood",
+      "path": "skills/dogfood",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "himalaya",
+      "category": "email",
+      "path": "skills/email/himalaya",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "minecraft-modpack-server",
+      "category": "gaming",
+      "path": "skills/gaming/minecraft-modpack-server",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "pokemon-player",
+      "category": "gaming",
+      "path": "skills/gaming/pokemon-player",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "codebase-inspection",
+      "category": "github",
+      "path": "skills/github/codebase-inspection",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "github-auth",
+      "category": "github",
+      "path": "skills/github/github-auth",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "github-code-review",
+      "category": "github",
+      "path": "skills/github/github-code-review",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "github-issues",
+      "category": "github",
+      "path": "skills/github/github-issues",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "github-pr-workflow",
+      "category": "github",
+      "path": "skills/github/github-pr-workflow",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "github-repo-management",
+      "category": "github",
+      "path": "skills/github/github-repo-management",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "native-mcp",
+      "category": "mcp",
+      "path": "skills/mcp/native-mcp",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "gif-search",
+      "category": "media",
+      "path": "skills/media/gif-search",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "heartmula",
+      "category": "media",
+      "path": "skills/media/heartmula",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "songsee",
+      "category": "media",
+      "path": "skills/media/songsee",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "spotify",
+      "category": "media",
+      "path": "skills/media/spotify",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "youtube-content",
+      "category": "media",
+      "path": "skills/media/youtube-content",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "lm-evaluation-harness",
+      "category": "mlops",
+      "path": "skills/mlops/evaluation/lm-evaluation-harness",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "weights-and-biases",
+      "category": "mlops",
+      "path": "skills/mlops/evaluation/weights-and-biases",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "huggingface-hub",
+      "category": "mlops",
+      "path": "skills/mlops/huggingface-hub",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "llama-cpp",
+      "category": "mlops",
+      "path": "skills/mlops/inference/llama-cpp",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "obliteratus",
+      "category": "mlops",
+      "path": "skills/mlops/inference/obliteratus",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "vllm",
+      "category": "mlops",
+      "path": "skills/mlops/inference/vllm",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "audiocraft",
+      "category": "mlops",
+      "path": "skills/mlops/models/audiocraft",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "segment-anything",
+      "category": "mlops",
+      "path": "skills/mlops/models/segment-anything",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "dspy",
+      "category": "mlops",
+      "path": "skills/mlops/research/dspy",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "obsidian",
+      "category": "note-taking",
+      "path": "skills/note-taking/obsidian",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "airtable",
+      "category": "productivity",
+      "path": "skills/productivity/airtable",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "google-workspace",
+      "category": "productivity",
+      "path": "skills/productivity/google-workspace",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "linear",
+      "category": "productivity",
+      "path": "skills/productivity/linear",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "maps",
+      "category": "productivity",
+      "path": "skills/productivity/maps",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "nano-pdf",
+      "category": "productivity",
+      "path": "skills/productivity/nano-pdf",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "notion",
+      "category": "productivity",
+      "path": "skills/productivity/notion",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "ocr-and-documents",
+      "category": "productivity",
+      "path": "skills/productivity/ocr-and-documents",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "powerpoint",
+      "category": "productivity",
+      "path": "skills/productivity/powerpoint",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "teams-meeting-pipeline",
+      "category": "productivity",
+      "path": "skills/productivity/teams-meeting-pipeline",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "godmode",
+      "category": "red-teaming",
+      "path": "skills/red-teaming/godmode",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "arxiv",
+      "category": "research",
+      "path": "skills/research/arxiv",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "blogwatcher",
+      "category": "research",
+      "path": "skills/research/blogwatcher",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "llm-wiki",
+      "category": "research",
+      "path": "skills/research/llm-wiki",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "polymarket",
+      "category": "research",
+      "path": "skills/research/polymarket",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "research-paper-writing",
+      "category": "research",
+      "path": "skills/research/research-paper-writing",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "openhue",
+      "category": "smart-home",
+      "path": "skills/smart-home/openhue",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "xurl",
+      "category": "social-media",
+      "path": "skills/social-media/xurl",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "debugging-hermes-tui-commands",
+      "category": "software-development",
+      "path": "skills/software-development/debugging-hermes-tui-commands",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "hermes-agent-skill-authoring",
+      "category": "software-development",
+      "path": "skills/software-development/hermes-agent-skill-authoring",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "hermes-s6-container-supervision",
+      "category": "software-development",
+      "path": "skills/software-development/hermes-s6-container-supervision",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "node-inspect-debugger",
+      "category": "software-development",
+      "path": "skills/software-development/node-inspect-debugger",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "plan",
+      "category": "software-development",
+      "path": "skills/software-development/plan",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "python-debugpy",
+      "category": "software-development",
+      "path": "skills/software-development/python-debugpy",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "requesting-code-review",
+      "category": "software-development",
+      "path": "skills/software-development/requesting-code-review",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "spike",
+      "category": "software-development",
+      "path": "skills/software-development/spike",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "subagent-driven-development",
+      "category": "software-development",
+      "path": "skills/software-development/subagent-driven-development",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "systematic-debugging",
+      "category": "software-development",
+      "path": "skills/software-development/systematic-debugging",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "test-driven-development",
+      "category": "software-development",
+      "path": "skills/software-development/test-driven-development",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "writing-plans",
+      "category": "software-development",
+      "path": "skills/software-development/writing-plans",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "hermes",
+      "name": "yuanbao",
+      "category": "yuanbao",
+      "path": "skills/yuanbao",
+      "commit": "2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2"
+    },
+    {
+      "source": "openclaw",
+      "name": "1password",
+      "category": "openclaw",
+      "path": "skills/1password",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "apple-notes",
+      "category": "openclaw",
+      "path": "skills/apple-notes",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "apple-reminders",
+      "category": "openclaw",
+      "path": "skills/apple-reminders",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "bear-notes",
+      "category": "openclaw",
+      "path": "skills/bear-notes",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "blogwatcher",
+      "category": "openclaw",
+      "path": "skills/blogwatcher",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "blucli",
+      "category": "openclaw",
+      "path": "skills/blucli",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "camsnap",
+      "category": "openclaw",
+      "path": "skills/camsnap",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "canvas",
+      "category": "openclaw",
+      "path": "skills/canvas",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "clawhub",
+      "category": "openclaw",
+      "path": "skills/clawhub",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "coding-agent",
+      "category": "openclaw",
+      "path": "skills/coding-agent",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "diagram-maker",
+      "category": "openclaw",
+      "path": "skills/diagram-maker",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "discord",
+      "category": "openclaw",
+      "path": "skills/discord",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "eightctl",
+      "category": "openclaw",
+      "path": "skills/eightctl",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "gemini",
+      "category": "openclaw",
+      "path": "skills/gemini",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "gh-issues",
+      "category": "openclaw",
+      "path": "skills/gh-issues",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "gifgrep",
+      "category": "openclaw",
+      "path": "skills/gifgrep",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "github",
+      "category": "openclaw",
+      "path": "skills/github",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "gog",
+      "category": "openclaw",
+      "path": "skills/gog",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "goplaces",
+      "category": "openclaw",
+      "path": "skills/goplaces",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "healthcheck",
+      "category": "openclaw",
+      "path": "skills/healthcheck",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "himalaya",
+      "category": "openclaw",
+      "path": "skills/himalaya",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "imsg",
+      "category": "openclaw",
+      "path": "skills/imsg",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "mcporter",
+      "category": "openclaw",
+      "path": "skills/mcporter",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "meme-maker",
+      "category": "openclaw",
+      "path": "skills/meme-maker",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "model-usage",
+      "category": "openclaw",
+      "path": "skills/model-usage",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "nano-pdf",
+      "category": "openclaw",
+      "path": "skills/nano-pdf",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "node-connect",
+      "category": "openclaw",
+      "path": "skills/node-connect",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "node-inspect-debugger",
+      "category": "openclaw",
+      "path": "skills/node-inspect-debugger",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "notion",
+      "category": "openclaw",
+      "path": "skills/notion",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "obsidian",
+      "category": "openclaw",
+      "path": "skills/obsidian",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "openai-whisper",
+      "category": "openclaw",
+      "path": "skills/openai-whisper",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "openai-whisper-api",
+      "category": "openclaw",
+      "path": "skills/openai-whisper-api",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "openhue",
+      "category": "openclaw",
+      "path": "skills/openhue",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "oracle",
+      "category": "openclaw",
+      "path": "skills/oracle",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "ordercli",
+      "category": "openclaw",
+      "path": "skills/ordercli",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "peekaboo",
+      "category": "openclaw",
+      "path": "skills/peekaboo",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "python-debugpy",
+      "category": "openclaw",
+      "path": "skills/python-debugpy",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "sag",
+      "category": "openclaw",
+      "path": "skills/sag",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "session-logs",
+      "category": "openclaw",
+      "path": "skills/session-logs",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "sherpa-onnx-tts",
+      "category": "openclaw",
+      "path": "skills/sherpa-onnx-tts",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "skill-creator",
+      "category": "openclaw",
+      "path": "skills/skill-creator",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "slack",
+      "category": "openclaw",
+      "path": "skills/slack",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "songsee",
+      "category": "openclaw",
+      "path": "skills/songsee",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "sonoscli",
+      "category": "openclaw",
+      "path": "skills/sonoscli",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "spike",
+      "category": "openclaw",
+      "path": "skills/spike",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "spotify-player",
+      "category": "openclaw",
+      "path": "skills/spotify-player",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "summarize",
+      "category": "openclaw",
+      "path": "skills/summarize",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "taskflow",
+      "category": "openclaw",
+      "path": "skills/taskflow",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "taskflow-inbox-triage",
+      "category": "openclaw",
+      "path": "skills/taskflow-inbox-triage",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "things-mac",
+      "category": "openclaw",
+      "path": "skills/things-mac",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "tmux",
+      "category": "openclaw",
+      "path": "skills/tmux",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "trello",
+      "category": "openclaw",
+      "path": "skills/trello",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "video-frames",
+      "category": "openclaw",
+      "path": "skills/video-frames",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "voice-call",
+      "category": "openclaw",
+      "path": "skills/voice-call",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "wacli",
+      "category": "openclaw",
+      "path": "skills/wacli",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "weather",
+      "category": "openclaw",
+      "path": "skills/weather",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    },
+    {
+      "source": "openclaw",
+      "name": "xurl",
+      "category": "openclaw",
+      "path": "skills/xurl",
+      "commit": "d00e764e66555320ac75f048c2767ba5877de0a9"
+    }
+  ]
+}

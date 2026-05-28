@@ -11,11 +11,15 @@ from .auth import add_auth_profile, auth_rows, run_auth_command, validate_auth
 from .chat import run_chat
 from .gateway import ROUTES, gateway_info, serve_gateway, validate_gateway
 from .improve import append_lesson, apply_improvement, propose_improvement
+from .ledger import ledger_rows, ledger_summary
+from .memory import configure_obsidian_vault, memory_status, recall_memory, record_feedback, validate_memory
 from .models import add_model_profile, model_rows, use_model_profile, validate_models
 from .setup import setup_report, setup_rows
 from .skills import create_skill, discover_skills, skill_config_rows, skill_rows, validate_skills
+from .telegram import configure_telegram, send_telegram_message, telegram_status, validate_telegram
 from .util import print_table
 from .web import serve
+from .wizard import setup_wizard
 from .workspace import Workspace
 
 
@@ -53,6 +57,13 @@ def build_parser() -> argparse.ArgumentParser:
     add_auth_parser(sub.add_parser("auth", help="Manage local CLI auth profiles"))
     add_api_parser(sub.add_parser("api", help="Manage OpenAI-compatible API profiles"))
     add_gateway_parser(sub.add_parser("gateway", help="Run the Birkin local gateway"))
+    add_memory_parser(sub.add_parser("memory", help="Manage Obsidian-backed memory"))
+    add_ledger_parser(sub.add_parser("ledger", help="Inspect usage ledger"))
+    add_telegram_parser(sub.add_parser("telegram", help="Configure Telegram onboarding"))
+
+    wizard = sub.add_parser("wizard", help="Run the first-run setup wizard")
+    add_wizard_args(wizard)
+    wizard.set_defaults(func=cmd_setup_wizard)
 
     skills = sub.add_parser("skills", help="Manage skills")
     skills_sub = skills.add_subparsers(required=True)
@@ -150,7 +161,19 @@ def add_setup_parser(parser: argparse.ArgumentParser) -> None:
     setup_status = setup_sub.add_parser("status")
     setup_status.add_argument("--json", action="store_true")
     setup_status.set_defaults(func=cmd_setup_check)
+    setup_wizard_parser = setup_sub.add_parser("wizard")
+    add_wizard_args(setup_wizard_parser)
+    setup_wizard_parser.set_defaults(func=cmd_setup_wizard)
     parser.set_defaults(func=cmd_setup_check)
+
+
+def add_wizard_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--model")
+    parser.add_argument("--obsidian-vault")
+    parser.add_argument("--telegram-chat-id")
+    parser.add_argument("--telegram-token-env", default="TELEGRAM_BOT_TOKEN")
+    parser.add_argument("--enable-telegram", action="store_true")
+    parser.add_argument("--non-interactive", action="store_true")
 
 
 def add_model_parser(parser: argparse.ArgumentParser) -> None:
@@ -231,6 +254,52 @@ def add_gateway_parser(parser: argparse.ArgumentParser) -> None:
     gateway_run.set_defaults(func=cmd_gateway_run)
 
 
+def add_memory_parser(parser: argparse.ArgumentParser) -> None:
+    memory_sub = parser.add_subparsers(required=True)
+    status = memory_sub.add_parser("status")
+    status.add_argument("--json", action="store_true")
+    status.set_defaults(func=cmd_memory_status)
+    set_vault = memory_sub.add_parser("set-vault")
+    set_vault.add_argument("path")
+    set_vault.add_argument("--allow-external", action="store_true")
+    set_vault.set_defaults(func=cmd_memory_set_vault)
+    record = memory_sub.add_parser("record")
+    record.add_argument("--kind", default="feedback", choices=["feedback", "errors", "conversations", "runs"])
+    record.add_argument("--text", required=True)
+    record.set_defaults(func=cmd_memory_record)
+    recall = memory_sub.add_parser("recall")
+    recall.add_argument("query")
+    recall.add_argument("--json", action="store_true")
+    recall.set_defaults(func=cmd_memory_recall)
+
+
+def add_ledger_parser(parser: argparse.ArgumentParser) -> None:
+    ledger_sub = parser.add_subparsers(required=True)
+    summary = ledger_sub.add_parser("summary")
+    summary.add_argument("--json", action="store_true")
+    summary.set_defaults(func=cmd_ledger_summary)
+    list_cmd = ledger_sub.add_parser("list")
+    list_cmd.add_argument("--json", action="store_true")
+    list_cmd.add_argument("--limit", type=int, default=50)
+    list_cmd.set_defaults(func=cmd_ledger_list)
+
+
+def add_telegram_parser(parser: argparse.ArgumentParser) -> None:
+    telegram_sub = parser.add_subparsers(required=True)
+    status = telegram_sub.add_parser("status")
+    status.add_argument("--json", action="store_true")
+    status.set_defaults(func=cmd_telegram_status)
+    setup = telegram_sub.add_parser("setup")
+    setup.add_argument("--chat-id", required=True)
+    setup.add_argument("--token-env", default="TELEGRAM_BOT_TOKEN")
+    setup.add_argument("--enable", action="store_true")
+    setup.set_defaults(func=cmd_telegram_setup)
+    test = telegram_sub.add_parser("test")
+    test.add_argument("--message", default="Birkin Codex Telegram onboarding test.")
+    test.add_argument("--json", action="store_true")
+    test.set_defaults(func=cmd_telegram_test)
+
+
 def ws() -> Workspace:
     return Workspace.discover(Path.cwd())
 
@@ -253,18 +322,24 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     auth_errors, auth_warnings = validate_auth(workspace)
     api_errors, api_warnings = validate_api(workspace)
     gateway_errors, gateway_warnings = validate_gateway(workspace)
+    memory_errors, memory_warnings = validate_memory(workspace)
+    telegram_errors, telegram_warnings = validate_telegram(workspace)
     errors.extend(model_errors)
     errors.extend(skill_errors)
     errors.extend(agent_errors)
     errors.extend(auth_errors)
     errors.extend(api_errors)
     errors.extend(gateway_errors)
+    errors.extend(memory_errors)
+    errors.extend(telegram_errors)
     warnings.extend(model_warnings)
     warnings.extend(skill_warnings)
     warnings.extend(agent_warnings)
     warnings.extend(auth_warnings)
     warnings.extend(api_warnings)
     warnings.extend(gateway_warnings)
+    warnings.extend(memory_warnings)
+    warnings.extend(telegram_warnings)
     for warning in warnings:
         print(f"warning: {warning}")
     for error in errors:
@@ -285,6 +360,20 @@ def cmd_setup_check(args: argparse.Namespace) -> int:
         print()
         print_table(skill_config_rows(workspace), ["check", "status", "detail"])
     return 1 if report["status"] == "error" else 0
+
+
+def cmd_setup_wizard(args: argparse.Namespace) -> int:
+    report = setup_wizard(
+        ws(),
+        model=args.model,
+        obsidian_vault=args.obsidian_vault,
+        telegram_chat_id=args.telegram_chat_id,
+        telegram_token_env=args.telegram_token_env,
+        enable_telegram=args.enable_telegram,
+        interactive=not args.non_interactive,
+    )
+    print_table(report["steps"], ["step", "status", "detail"])
+    return 0 if report["status"] in {"ok", "warning"} else 1
 
 
 def cmd_models_list(args: argparse.Namespace) -> int:
@@ -438,6 +527,115 @@ def cmd_gateway_status(args: argparse.Namespace) -> int:
 def cmd_gateway_run(args: argparse.Namespace) -> int:
     serve_gateway(ws(), args.host, args.port)
     return 0
+
+
+def cmd_memory_status(args: argparse.Namespace) -> int:
+    status = memory_status(ws())
+    if args.json:
+        print(json.dumps(status, indent=2, ensure_ascii=False))
+    else:
+        print_table(
+            [
+                {
+                    "provider": status["provider"],
+                    "vaultPath": status["vaultPath"],
+                    "exists": "yes" if status["vaultExists"] else "no",
+                    "notes": str(status["noteCount"]),
+                    "error": status["error"],
+                }
+            ],
+            ["provider", "vaultPath", "exists", "notes", "error"],
+        )
+    return 1 if status.get("error") else 0
+
+
+def cmd_memory_set_vault(args: argparse.Namespace) -> int:
+    configure_obsidian_vault(ws(), args.path, allow_external=args.allow_external)
+    print(f"memory vault {args.path}")
+    return 0
+
+
+def cmd_memory_record(args: argparse.Namespace) -> int:
+    note = record_feedback(ws(), args.text, args.kind)
+    print(note.path)
+    return 0
+
+
+def cmd_memory_recall(args: argparse.Namespace) -> int:
+    rows = recall_memory(ws(), args.query)
+    if args.json:
+        print(json.dumps(rows, indent=2, ensure_ascii=False))
+    else:
+        print_table(rows, ["title", "score", "snippet", "path"])
+    return 0
+
+
+def cmd_ledger_summary(args: argparse.Namespace) -> int:
+    summary = ledger_summary(ws())
+    if args.json:
+        print(json.dumps(summary, indent=2, ensure_ascii=False))
+    else:
+        totals = summary["totals"]
+        print_table(
+            [
+                {
+                    "runs": str(totals["runs"]),
+                    "estimatedTokens": str(totals["estimatedTokens"]),
+                    "providerTokens": str(totals["providerTotalTokens"]),
+                    "costUsd": f"{float(totals['costUsd']):.6f}",
+                    "path": summary["path"],
+                }
+            ],
+            ["runs", "estimatedTokens", "providerTokens", "costUsd", "path"],
+        )
+    return 0
+
+
+def cmd_ledger_list(args: argparse.Namespace) -> int:
+    rows = ledger_rows(ws(), args.limit)
+    if args.json:
+        print(json.dumps(rows, indent=2, ensure_ascii=False))
+    else:
+        print_table(rows, ["timestamp", "runId", "agent", "status", "model", "estimatedTokens", "providerTokens", "costUsd"])
+    return 0
+
+
+def cmd_telegram_status(args: argparse.Namespace) -> int:
+    status = telegram_status(ws())
+    if args.json:
+        print(json.dumps(status, indent=2, ensure_ascii=False))
+    else:
+        print_table(
+            [
+                {
+                    "enabled": "yes" if status["enabled"] else "no",
+                    "botTokenEnv": status["botTokenEnv"],
+                    "tokenPresent": "yes" if status["tokenPresent"] else "no",
+                    "chatId": "set" if status["chatId"] else "",
+                    "parseMode": status["parseMode"],
+                }
+            ],
+            ["enabled", "botTokenEnv", "tokenPresent", "chatId", "parseMode"],
+        )
+    return 0
+
+
+def cmd_telegram_setup(args: argparse.Namespace) -> int:
+    configure_telegram(ws(), args.chat_id, args.token_env, enabled=args.enable)
+    print(f"telegram chat id {'enabled' if args.enable else 'configured'}")
+    return 0
+
+
+def cmd_telegram_test(args: argparse.Namespace) -> int:
+    result = send_telegram_message(ws(), args.message)
+    if args.json:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        if result["stdout"]:
+            print(result["stdout"])
+        if result["stderr"]:
+            print(result["stderr"], file=sys.stderr)
+    return int(result.get("returncode") or 0)
 
 
 def cmd_skills_list(args: argparse.Namespace) -> int:

@@ -1,11 +1,11 @@
 # Reference Notes
 
-Scope date: 2026-05-27.
+Scope date: 2026-05-28.
 
 Reference snapshot:
 
-- Hermes Agent commit: `bb4703c761ea6687b6399aa2e61e0a08fabd3ca3`
-- OpenClaw commit: `8d6b5997375890608a1bb46a08c1f5a819443d59`
+- Hermes Agent commit: `2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2`
+- OpenClaw commit: `d00e764e66555320ac75f048c2767ba5877de0a9`
 
 ## Sources Used
 
@@ -26,6 +26,9 @@ Reference snapshot:
 - Skill gating by platform, environment variables, and required binaries.
 - Per-agent skill allowlists.
 - Model selection through configured provider/model profiles and per-run overrides.
+- Obsidian-style note storage for durable memory.
+- JSONL usage ledger for run and token accounting.
+- Telegram bot onboarding through environment-backed secrets.
 - Snapshot-style prompt packets for CLI subagent execution.
 - Web UI as an operator control surface, not a separate backend product.
 - Self-improvement loop based on run records, reviews, memory notes, and user corrections.

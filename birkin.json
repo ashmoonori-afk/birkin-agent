@@ -211,6 +211,33 @@
     "tokenEnv": "BIRKIN_GATEWAY_TOKEN",
     "requireToken": false
   },
+  "memory": {
+    "provider": "obsidian",
+    "vaultPath": "memory/obsidian-vault",
+    "allowExternalVault": false,
+    "folders": {
+      "conversations": "Birkin/Conversations",
+      "feedback": "Birkin/Feedback",
+      "errors": "Birkin/Errors",
+      "runs": "Birkin/Runs"
+    },
+    "autoCapture": {
+      "chat": true,
+      "runs": true,
+      "feedback": true,
+      "errors": true
+    }
+  },
+  "telegram": {
+    "enabled": false,
+    "botTokenEnv": "TELEGRAM_BOT_TOKEN",
+    "chatId": "",
+    "parseMode": ""
+  },
+  "ledger": {
+    "path": "usage/ledger.jsonl",
+    "currency": "USD"
+  },
   "improvement": {
     "mode": "proposal",
     "sources": [

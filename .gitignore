@@ -10,6 +10,8 @@ venv/
 .refs/
 runs/*
 !runs/.gitkeep
+usage/*
+!usage/.gitkeep
 memory/*
 !memory/.gitkeep
 improvements/*

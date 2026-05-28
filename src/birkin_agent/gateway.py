@@ -10,8 +10,11 @@ from .api import api_rows, validate_api
 from .agents import run_agent
 from .auth import auth_rows, run_auth_command, validate_auth
 from .chat import run_chat
+from .ledger import ledger_rows, ledger_summary
+from .memory import memory_status
 from .models import model_rows
 from .skills import skill_config_rows
+from .telegram import telegram_status
 from .workspace import Workspace
 
 
@@ -25,6 +28,9 @@ ROUTES = [
     "GET /api/gateway",
     "GET /api/setup",
     "GET /api/skills/config",
+    "GET /api/memory",
+    "GET /api/ledger",
+    "GET /api/telegram",
     "POST /api/run",
     "POST /api/chat",
     "POST /api/auth/{profile}/status",
@@ -165,6 +171,15 @@ class GatewayHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/skills/config":
             self.send_json({"skillConfig": skill_config_rows(self.workspace)})
+            return
+        if parsed.path == "/api/memory":
+            self.send_json({"memory": memory_status(self.workspace)})
+            return
+        if parsed.path == "/api/ledger":
+            self.send_json({"ledger": ledger_summary(self.workspace), "rows": ledger_rows(self.workspace)})
+            return
+        if parsed.path == "/api/telegram":
+            self.send_json({"telegram": telegram_status(self.workspace)})
             return
         self.send_json({"error": "not found"}, 404)
 

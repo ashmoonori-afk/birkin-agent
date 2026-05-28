@@ -26,6 +26,12 @@ compatibility with their private internals.
   through the selected agent and model profile.
 - `src/birkin_agent/setup.py`: produces Hermes-style setup checks across workspace,
   models, auth, API, gateway, skills, agents, and chat.
+- `src/birkin_agent/memory.py`: writes and recalls Obsidian-compatible markdown memory
+  for conversations, feedback, errors, and run summaries.
+- `src/birkin_agent/ledger.py`: appends one JSONL ledger entry per run and aggregates
+  estimated/provider usage.
+- `src/birkin_agent/telegram.py`: stores Telegram onboarding config and sends bot test
+  messages using a token environment variable.
 - `src/birkin_agent/gateway.py`: serves a local machine-facing HTTP gateway for
   health, status, model, auth, API, setup, skill config, chat, and run operations.
 - `src/birkin_agent/improve.py`: records lessons, gathers signals, creates pending
@@ -36,10 +42,10 @@ compatibility with their private internals.
   result summaries, status, usage, warnings, skills, agents, and job generation.
 - `skills/`: bundled starter skill set covering core, tools, development, creative,
   integrations, and product workflows.
-- `skills/hermes-reflections/`: one lightweight capability marker per Hermes bundled
-  upstream skill directory, generated from the referenced Hermes snapshot.
-- `skills/openclaw-reflections/`: one lightweight capability marker per OpenClaw
-  upstream skill directory, generated from the referenced OpenClaw snapshot.
+- `skills/hermes-reflections/`: one Birkin skill per Hermes bundled upstream skill
+  directory, pointing at exact mirrored files under `skills/upstream/hermes/`.
+- `skills/openclaw-reflections/`: one Birkin skill per OpenClaw upstream skill
+  directory, pointing at exact mirrored files under `skills/upstream/openclaw/`.
 
 ## Skill Precedence
 

@@ -20,10 +20,14 @@ from birkin_agent.cli import main as cli_main
 from birkin_agent.dashboard import dashboard_data
 from birkin_agent.gateway import GatewayHandler
 from birkin_agent.improve import append_lesson, apply_improvement, propose_improvement
+from birkin_agent.ledger import ledger_rows, ledger_summary
+from birkin_agent.memory import memory_status, recall_memory, record_feedback
 from birkin_agent.models import render_model_command, resolve_model_profile, use_model_profile, validate_models
 from birkin_agent.setup import setup_report
 from birkin_agent.skills import create_skill, discover_skills, skill_config_rows, validate_skills
+from birkin_agent.telegram import configure_telegram, telegram_status
 from birkin_agent.web import Handler
+from birkin_agent.wizard import setup_wizard
 from birkin_agent.workspace import Workspace
 
 
@@ -232,6 +236,8 @@ class WorkspaceTest(unittest.TestCase):
         config = {row["check"]: row for row in skill_config_rows(workspace)}
         self.assertEqual(config["catalog"]["status"], "ok")
         self.assertIn("90 Hermes", config["reflections"]["detail"])
+        self.assertEqual(config["upstream-mirror"]["status"], "ok")
+        self.assertIn("147 mirrored", config["upstream-mirror"]["detail"])
 
     def test_chat_packet_writes_record(self) -> None:
         workspace = self.make_workspace()
@@ -240,6 +246,9 @@ class WorkspaceTest(unittest.TestCase):
         self.assertEqual(payload["status"], "packet-only")
         self.assertIn("Prompt packet built", payload["reply"])
         self.assertTrue(Path(payload["record"]).exists())
+        self.assertIn("memoryNote", payload)
+        self.assertTrue(Path(payload["memoryNote"]).exists())
+        self.assertGreaterEqual(ledger_summary(workspace)["totals"]["runs"], 1)
 
     def test_cli_without_args_opens_interactive_chat(self) -> None:
         workspace = self.make_workspace()
@@ -254,6 +263,37 @@ class WorkspaceTest(unittest.TestCase):
         self.assertIn("Commands: /help", output)
         self.assertIn("bye", output)
 
+    def test_obsidian_memory_recall_and_ledger(self) -> None:
+        workspace = self.make_workspace()
+        note = record_feedback(workspace, "USER_CORRECTION: prefer Obsidian memory for feedback.")
+        self.assertTrue(note.path.exists())
+        recalled = recall_memory(workspace, "Obsidian feedback")
+        self.assertTrue(recalled)
+        status = memory_status(workspace)
+        self.assertTrue(status["vaultExists"])
+        run_agent(workspace, "planner", "Plan with ledger")
+        rows = ledger_rows(workspace)
+        self.assertTrue(rows)
+        self.assertEqual(rows[0]["agent"], "planner")
+
+    def test_setup_wizard_model_memory_and_telegram(self) -> None:
+        workspace = self.make_workspace()
+        report = setup_wizard(
+            workspace,
+            model="packet",
+            obsidian_vault="memory/test-vault",
+            telegram_chat_id="12345",
+            telegram_token_env="BIRKIN_TEST_TELEGRAM_TOKEN",
+            enable_telegram=True,
+            interactive=False,
+        )
+        self.assertIn(report["status"], {"ok", "warning"})
+        self.assertEqual(workspace.config["models"]["default"], "packet")
+        self.assertIn("test-vault", memory_status(workspace)["vaultPath"])
+        status = telegram_status(workspace)
+        self.assertTrue(status["enabled"])
+        self.assertEqual(status["chatId"], "12345")
+
     def test_dashboard_summarizes_jobs_usage_and_warnings(self) -> None:
         workspace = self.make_workspace()
         run_agent(workspace, "planner", "Plan a release")
@@ -267,6 +307,10 @@ class WorkspaceTest(unittest.TestCase):
         self.assertIn("auth", data)
         self.assertIn("api", data)
         self.assertIn("gateway", data)
+        self.assertIn("memory", data)
+        self.assertIn("telegram", data)
+        self.assertIn("ledger", data)
+        self.assertIn("ledgerRows", data)
         self.assertIn("setup", data)
         self.assertIn("skillConfig", data)
         self.assertGreaterEqual(data["metrics"]["modelsTotal"], 4)
@@ -375,6 +419,14 @@ class WorkspaceTest(unittest.TestCase):
         with urlopen(f"http://{host}:{port}/api/setup", timeout=5) as response:
             setup = json.loads(response.read().decode("utf-8"))
         self.assertIn("checks", setup)
+
+        with urlopen(f"http://{host}:{port}/api/ledger", timeout=5) as response:
+            ledger = json.loads(response.read().decode("utf-8"))
+        self.assertIn("ledger", ledger)
+
+        with urlopen(f"http://{host}:{port}/api/memory", timeout=5) as response:
+            memory = json.loads(response.read().decode("utf-8"))
+        self.assertIn("memory", memory)
 
         body = json.dumps({"agent": "planner", "model": "packet", "task": "Plan a release"}).encode("utf-8")
         request = Request(

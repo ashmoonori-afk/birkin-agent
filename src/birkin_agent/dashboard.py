@@ -9,8 +9,11 @@ from .api import api_rows, validate_api
 from .auth import auth_rows, validate_auth
 from .gateway import gateway_info, validate_gateway
 from .improve import collect_signals
+from .ledger import ledger_rows, ledger_summary
+from .memory import memory_status, validate_memory
 from .models import model_rows, validate_models
 from .skills import discover_skills, skill_config_rows, skill_rows, validate_skills
+from .telegram import telegram_status, validate_telegram
 from .workspace import Workspace
 
 
@@ -117,6 +120,8 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
     auth_errors, auth_warnings = validate_auth(workspace)
     api_errors, api_warnings = validate_api(workspace)
     gateway_errors, gateway_warnings = validate_gateway(workspace)
+    memory_errors, memory_warnings = validate_memory(workspace)
+    telegram_errors, telegram_warnings = validate_telegram(workspace)
     warnings = warning_rows(
         doctor_errors,
         doctor_warnings,
@@ -134,6 +139,10 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
         ("api", "warning", api_warnings),
         ("gateway", "critical", gateway_errors),
         ("gateway", "warning", gateway_warnings),
+        ("memory", "critical", memory_errors),
+        ("memory", "warning", memory_warnings),
+        ("telegram", "critical", telegram_errors),
+        ("telegram", "warning", telegram_warnings),
     ]:
         for value in values:
             warnings.append({"severity": severity, "source": source, "message": value})
@@ -168,6 +177,10 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
         api_warnings,
         gateway_errors,
         gateway_warnings,
+        memory_errors,
+        memory_warnings,
+        telegram_errors,
+        telegram_warnings,
         skill_errors,
         skill_warnings,
         agent_errors,
@@ -202,6 +215,10 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
         "auth": auth,
         "api": api,
         "gateway": gateway_info(workspace),
+        "memory": memory_status(workspace),
+        "telegram": telegram_status(workspace),
+        "ledger": ledger_summary(workspace),
+        "ledgerRows": ledger_rows(workspace),
         "setup": setup,
         "signals": signals,
         "summary": workspace_summary(jobs, warnings, usage),
@@ -246,6 +263,10 @@ def setup_dashboard_report(
     api_warnings: list[str],
     gateway_errors: list[str],
     gateway_warnings: list[str],
+    memory_errors: list[str],
+    memory_warnings: list[str],
+    telegram_errors: list[str],
+    telegram_warnings: list[str],
     skill_errors: list[str],
     skill_warnings: list[str],
     agent_errors: list[str],
@@ -262,6 +283,8 @@ def setup_dashboard_report(
         setup_row("auth", auth_errors, auth_warnings, f"{len(auth)} auth profiles configured.", "birkin-codex auth list"),
         setup_row("api", api_errors, api_warnings, "OpenAI-compatible API profiles are configured.", "birkin-codex api list"),
         setup_row("gateway", gateway_errors, gateway_warnings, "Gateway config is available.", "birkin-codex gateway status"),
+        setup_row("memory", memory_errors, memory_warnings, "Obsidian-backed memory capture is configured.", "birkin-codex memory status"),
+        setup_row("telegram", telegram_errors, telegram_warnings, "Telegram onboarding can send notifications.", "birkin-codex telegram status"),
         setup_row("skills", skill_errors, skill_warnings, f"{sum(1 for row in skills if row['enabled'] == 'yes')}/{len(skills)} skills are enabled and eligible.", "birkin-codex skills validate"),
         setup_row("agents", agent_errors, agent_warnings, "Agent roles and skill allowlists are configured.", "birkin-codex agents list"),
         setup_row("chat", [] if "chat" in agent_ids else ["chat agent is not configured"], [], "Chat agent and dashboard chat API are available.", "birkin-codex web --port 8765"),

@@ -1,14 +1,14 @@
 # Hermes Skill Reflection Map
 
-Scope date: 2026-05-27.
+Scope date: 2026-05-28.
 
-Birkin reflects the Hermes Agent bundled `skills/` catalog at commit `bb4703c761ea6687b6399aa2e61e0a08fabd3ca3` as lightweight `hermes-<name>` capability markers.
+Birkin mirrors the Hermes Agent bundled `skills/` catalog at commit `2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2` under `skills/upstream/hermes/` and exposes each directory as a `hermes-<name>` skill.
 
-These files are not vendored Hermes implementations. They preserve routing intent, source paths, and verification boundaries so a Birkin agent can choose or build a local adapter deliberately.
+Reflection files preserve routing intent, source paths, and verification boundaries while the exact upstream skill files remain available in the mirrored source tree.
 
 Excluded from this map: Hermes `optional-skills/`, plugins, generated website pages, and runtime internals.
 
-Total reflected bundled skills: 90.
+Total mirrored bundled skills: 90.
 
 ## Reflected Skills
 
@@ -47,7 +47,7 @@ Total reflected bundled skills: 90.
 | `hermes-design-md` | `skills/creative/design-md` | Author/validate/export Google's DESIGN.md token spec files. |
 | `hermes-excalidraw` | `skills/creative/excalidraw` | Hand-drawn Excalidraw JSON diagrams (arch, flow, seq). |
 | `hermes-humanizer` | `skills/creative/humanizer` | Humanize text: strip AI-isms and add real voice. |
-| `hermes-ideation` | `skills/creative/creative-ideation` | Generate project ideas via creative constraints. |
+| `hermes-creative-ideation` | `skills/creative/creative-ideation` | Generate project ideas via creative constraints. |
 | `hermes-manim-video` | `skills/creative/manim-video` | Manim CE animations: 3Blue1Brown math/algo videos. |
 | `hermes-p5js` | `skills/creative/p5js` | p5.js sketches: gen art, shaders, interactive, 3D. |
 | `hermes-pixel-art` | `skills/creative/pixel-art` | Pixel art w/ era palettes (NES, Game Boy, PICO-8). |
@@ -121,14 +121,14 @@ Total reflected bundled skills: 90.
 
 | Birkin skill | Hermes source | Upstream summary |
 | --- | --- | --- |
-| `hermes-audiocraft-audio-generation` | `skills/mlops/models/audiocraft` | AudioCraft: MusicGen text-to-music, AudioGen text-to-sound. |
+| `hermes-audiocraft` | `skills/mlops/models/audiocraft` | AudioCraft: MusicGen text-to-music, AudioGen text-to-sound. |
 | `hermes-dspy` | `skills/mlops/research/dspy` | DSPy: declarative LM programs, auto-optimize prompts, RAG. |
-| `hermes-evaluating-llms-harness` | `skills/mlops/evaluation/lm-evaluation-harness` | lm-eval-harness: benchmark LLMs (MMLU, GSM8K, etc.). |
+| `hermes-lm-evaluation-harness` | `skills/mlops/evaluation/lm-evaluation-harness` | lm-eval-harness: benchmark LLMs (MMLU, GSM8K, etc.). |
 | `hermes-huggingface-hub` | `skills/mlops/huggingface-hub` | HuggingFace hf CLI: search/download/upload models, datasets. |
 | `hermes-llama-cpp` | `skills/mlops/inference/llama-cpp` | llama.cpp local GGUF inference + HF Hub model discovery. |
 | `hermes-obliteratus` | `skills/mlops/inference/obliteratus` | OBLITERATUS: abliterate LLM refusals (diff-in-means). |
-| `hermes-segment-anything-model` | `skills/mlops/models/segment-anything` | SAM: zero-shot image segmentation via points, boxes, masks. |
-| `hermes-serving-llms-vllm` | `skills/mlops/inference/vllm` | vLLM: high-throughput LLM serving, OpenAI API, quantization. |
+| `hermes-segment-anything` | `skills/mlops/models/segment-anything` | SAM: zero-shot image segmentation via points, boxes, masks. |
+| `hermes-vllm` | `skills/mlops/inference/vllm` | vLLM: high-throughput LLM serving, OpenAI API, quantization. |
 | `hermes-weights-and-biases` | `skills/mlops/evaluation/weights-and-biases` | W&B: log ML experiments, sweeps, model registry, dashboards. |
 
 ### note-taking

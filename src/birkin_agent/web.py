@@ -238,6 +238,9 @@ INDEX_HTML = """<!doctype html>
       <button data-tab="auth">Auth</button>
       <button data-tab="api">API</button>
       <button data-tab="gateway">Gateway</button>
+      <button data-tab="memory">Memory</button>
+      <button data-tab="ledger">Ledger</button>
+      <button data-tab="telegram">Telegram</button>
       <button data-tab="skills">Skills</button>
       <button data-tab="agents">Agents</button>
       <button data-tab="warnings">Warnings</button>
@@ -312,6 +315,9 @@ INDEX_HTML = """<!doctype html>
       <section id="auth"><div class="panel"><h2>Auth</h2><table id="auth-table"></table></div></section>
       <section id="api"><div class="panel"><h2>API Profiles</h2><table id="api-table"></table></div></section>
       <section id="gateway"><div class="panel"><h2>Gateway</h2><pre id="gateway-json"></pre></div></section>
+      <section id="memory"><div class="panel"><h2>Memory</h2><table id="memory-table"></table></div></section>
+      <section id="ledger"><div class="panel"><h2>Ledger Summary</h2><pre id="ledger-json"></pre></div><div class="panel"><h2>Ledger Rows</h2><table id="ledger-table"></table></div></section>
+      <section id="telegram"><div class="panel"><h2>Telegram</h2><table id="telegram-table"></table></div></section>
       <section id="skills"><div class="panel"><h2>Skills</h2><table id="skills-table"></table></div></section>
       <section id="agents"><div class="panel"><h2>Agents</h2><table id="agents-table"></table></div></section>
       <section id="warnings"><div class="panel"><h2>Warnings</h2><table id="warnings-full-table"></table></div></section>
@@ -463,6 +469,31 @@ INDEX_HTML = """<!doctype html>
         {key: "description", label: "Description"}
       ]);
       document.querySelector("#gateway-json").textContent = JSON.stringify(d.gateway, null, 2);
+      table(document.querySelector("#memory-table"), [d.memory], [
+        {key: "provider", label: "Provider"},
+        {key: "vaultPath", label: "Vault"},
+        {key: "vaultExists", label: "Exists"},
+        {key: "noteCount", label: "Notes"},
+        {key: "error", label: "Error"}
+      ]);
+      document.querySelector("#ledger-json").textContent = JSON.stringify(d.ledger, null, 2);
+      table(document.querySelector("#ledger-table"), d.ledgerRows, [
+        {key: "timestamp", label: "Timestamp"},
+        {key: "runId", label: "Run"},
+        {key: "agent", label: "Agent"},
+        {key: "status", label: "Status"},
+        {key: "model", label: "Model"},
+        {key: "estimatedTokens", label: "Est Tokens"},
+        {key: "providerTokens", label: "Provider Tokens"},
+        {key: "costUsd", label: "Cost USD"}
+      ]);
+      table(document.querySelector("#telegram-table"), [d.telegram], [
+        {key: "enabled", label: "Enabled"},
+        {key: "botTokenEnv", label: "Token Env"},
+        {key: "tokenPresent", label: "Token Present"},
+        {key: "chatId", label: "Chat ID"},
+        {key: "parseMode", label: "Parse Mode"}
+      ]);
       table(document.querySelector("#skills-table"), d.skills, [
         {key: "name", label: "Name"},
         {key: "enabled", label: "Enabled"},

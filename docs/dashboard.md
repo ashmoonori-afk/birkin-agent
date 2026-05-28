@@ -1,6 +1,6 @@
 # Dashboard
 
-Scope date: 2026-05-27.
+Scope date: 2026-05-28.
 
 The Birkin Web UI is an operator dashboard, not a landing page. It is served by the
 Python standard library:
@@ -20,6 +20,7 @@ Open `http://127.0.0.1:8765`.
 - Recent job results with status, agent, model, task, result summary, usage, and timestamp.
 - Model profile count and a model selector for new jobs.
 - Auth, API, and gateway tabs for integration status.
+- Memory, ledger, and Telegram tabs for onboarding and durable status.
 - Setup and skill config tabs for readiness verification.
 - Chat tab for message-oriented agent runs.
 - Warnings in a separate panel.
@@ -31,6 +32,8 @@ Open `http://127.0.0.1:8765`.
 The dashboard reads:
 
 - `runs/*.json` for job history, summaries, status, and usage.
+- `usage/ledger.jsonl` for ledger totals and recent usage rows.
+- The configured Obsidian vault for memory status.
 - `skills/**/SKILL.md` for skill status and gating warnings.
 - `birkin.json` for agents, models, runners, auth profiles, API profiles, gateway
   config, and allowlists.

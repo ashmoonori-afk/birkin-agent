@@ -1,11 +1,11 @@
 ﻿# OpenClaw Skill Reflection Map
 
-Scope date: 2026-05-27.
+Scope date: 2026-05-28.
 
-OpenClaw upstream commit: `8d6b5997375890608a1bb46a08c1f5a819443d59`
-Hermes upstream commit: `bb4703c761ea6687b6399aa2e61e0a08fabd3ca3`
+OpenClaw upstream commit: `d00e764e66555320ac75f048c2767ba5877de0a9`
+Hermes upstream commit: `2d5dcfabc312d43f87a4f0f44c45f62cf24a09b2`
 
-Birkin reflects each OpenClaw skill directory as a lightweight `openclaw-<name>` skill under `skills/openclaw-reflections/`. These are capability markers and routing targets, not vendored implementations.
+Birkin mirrors each OpenClaw skill directory under `skills/upstream/openclaw/` and exposes it as an `openclaw-<name>` skill under `skills/openclaw-reflections/`.
 
 ## Reflected Skills
 

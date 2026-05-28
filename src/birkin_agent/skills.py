@@ -273,6 +273,7 @@ def skill_config_rows(workspace: Workspace) -> list[dict[str, str]]:
     shadowed = sum(len(record.shadowed) for record in records)
     hermes = sum(1 for record in records if record.name.startswith("hermes-"))
     openclaw = sum(1 for record in records if record.name.startswith("openclaw-"))
+    upstream = upstream_manifest_status(workspace)
     errors, warnings = validate_skill_config(workspace)
     roots = config.get("roots") if isinstance(config, dict) else []
     enabled_config = config.get("enabled") if isinstance(config, dict) else None
@@ -322,12 +323,42 @@ def skill_config_rows(workspace: Workspace) -> list[dict[str, str]]:
             "status": "ok" if hermes >= 90 and openclaw >= 57 else "warning",
             "detail": f"{hermes} Hermes, {openclaw} OpenClaw",
         },
+        {
+            "check": "upstream-mirror",
+            "status": "ok" if upstream["total"] >= hermes + openclaw and upstream["missing"] == 0 else "warning",
+            "detail": f"{upstream['total']} mirrored upstream skills, {upstream['missing']} missing directories",
+        },
     ]
     if errors:
         rows.append({"check": "config-errors", "status": "error", "detail": "; ".join(errors[:3])})
     if warnings:
         rows.append({"check": "config-warnings", "status": "warning", "detail": "; ".join(warnings[:3])})
     return rows
+
+
+def upstream_manifest_status(workspace: Workspace) -> dict[str, int]:
+    manifest = workspace.rel("skills", "upstream", "manifest.json")
+    if not manifest.exists():
+        return {"total": 0, "missing": 0}
+    try:
+        payload = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"total": 0, "missing": 0}
+    skills = payload.get("skills") if isinstance(payload.get("skills"), list) else []
+    missing = 0
+    for row in skills:
+        if not isinstance(row, dict):
+            continue
+        source = str(row.get("source") or "")
+        path = str(row.get("path") or "")
+        if not source or not path:
+            missing += 1
+            continue
+        rel = Path(path)
+        parts = rel.parts[1:] if rel.parts and rel.parts[0] == "skills" else rel.parts
+        if not workspace.rel("skills", "upstream", source, *parts).exists():
+            missing += 1
+    return {"total": len(skills), "missing": missing}
 
 
 def create_skill(workspace: Workspace, name: str, description: str, group: str = "custom") -> Path:

@@ -45,6 +45,7 @@ class Workspace:
             "managed-skills",
             "bundled-skills",
             "runs",
+            "usage",
             "memory",
             "improvements",
             "reviews",

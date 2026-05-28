@@ -1,6 +1,6 @@
 # Setup, Chat, and Skill Config
 
-Scope date: 2026-05-27.
+Scope date: 2026-05-28.
 
 Birkin includes Hermes-style setup checks, an interactive chat surface, and skill
 configuration verification.
@@ -13,6 +13,7 @@ Run the setup check before using real model execution:
 birkin-codex setup
 birkin-codex setup --json
 birkin-codex setup check
+birkin-codex setup wizard
 ```
 
 The setup report checks:
@@ -22,6 +23,9 @@ The setup report checks:
 - Local CLI auth profiles.
 - OpenAI-compatible API profiles.
 - Gateway config.
+- Obsidian memory.
+- Telegram onboarding.
+- Usage ledger.
 - Skill validation.
 - Agent allowlists.
 - Chat agent availability.
@@ -86,6 +90,7 @@ birkin-codex skills validate
 - Shadowed duplicate skill files.
 - Enabled/disabled selection state.
 - Hermes and OpenClaw reflection counts.
+- Exact upstream mirror completeness.
 
 This check is separate from `skills validate`, which still validates each `SKILL.md`
 frontmatter and body. `skills validate` also includes the config-level checks.

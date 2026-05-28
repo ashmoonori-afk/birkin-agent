@@ -145,6 +145,7 @@ def call_openai_compatible(
                 "stderr": "",
                 "apiProfile": profile.id,
                 "model": model,
+                "usage": parsed.get("usage") if isinstance(parsed.get("usage"), dict) else {},
                 "response": parsed,
             }
     except HTTPError as exc:

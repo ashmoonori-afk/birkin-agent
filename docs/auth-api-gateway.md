@@ -107,6 +107,9 @@ GET /api/api-profiles
 GET /api/gateway
 GET /api/setup
 GET /api/skills/config
+GET /api/memory
+GET /api/ledger
+GET /api/telegram
 POST /api/run
 POST /api/chat
 POST /api/auth/{profile}/status

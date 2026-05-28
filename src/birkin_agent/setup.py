@@ -7,8 +7,11 @@ from .agents import validate_agents
 from .api import validate_api
 from .auth import auth_rows, validate_auth
 from .gateway import gateway_info, validate_gateway
+from .ledger import ledger_summary
+from .memory import memory_status, validate_memory
 from .models import model_rows, validate_models
 from .skills import skill_config_rows, skill_rows, validate_skills
+from .telegram import telegram_status, validate_telegram
 from .workspace import Workspace
 
 
@@ -64,6 +67,35 @@ def setup_checks(workspace: Workspace) -> list[SetupCheck]:
         gateway_warnings,
         f"Gateway configured for {info['host']}:{info['port']}.",
         "birkin-codex gateway status",
+    )
+    memory_errors, memory_warnings = validate_memory(workspace)
+    memory = memory_status(workspace)
+    add_check(
+        rows,
+        "memory",
+        memory_errors,
+        memory_warnings,
+        f"Obsidian memory vault: {memory['vaultPath']}.",
+        "birkin-codex memory status",
+    )
+    telegram_errors, telegram_warnings = validate_telegram(workspace)
+    telegram = telegram_status(workspace)
+    add_check(
+        rows,
+        "telegram",
+        telegram_errors,
+        telegram_warnings,
+        f"Telegram enabled={telegram['enabled']} chatId={'set' if telegram['chatId'] else 'missing'}.",
+        "birkin-codex telegram status",
+    )
+    ledger = ledger_summary(workspace)
+    add_check(
+        rows,
+        "ledger",
+        [],
+        [],
+        f"Usage ledger has {ledger['totals']['runs']} entries at {ledger['path']}.",
+        "birkin-codex ledger summary",
     )
     skill_errors, skill_warnings = validate_skills(workspace)
     skills = skill_rows(workspace)

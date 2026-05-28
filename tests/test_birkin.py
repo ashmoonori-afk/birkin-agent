@@ -80,6 +80,9 @@ class WorkspaceTest(unittest.TestCase):
         self.assertTrue((workspace.root / "scripts" / "birkin-codex.ps1").exists())
         self.assertTrue((workspace.root / "scripts" / "birkin").exists())
         self.assertTrue((workspace.root / "scripts" / "birkin.ps1").exists())
+        self.assertTrue((workspace.root / "scripts" / "install.sh").exists())
+        self.assertTrue((workspace.root / "scripts" / "install.ps1").exists())
+        self.assertIn("birkin-codex", (workspace.root / "scripts" / "install.sh").read_text(encoding="utf-8"))
         self.assertTrue((workspace.root / "scripts" / "setup").exists())
         self.assertTrue((workspace.root / "scripts" / "setup.ps1").exists())
 
@@ -376,6 +379,19 @@ class WorkspaceTest(unittest.TestCase):
         self.assertIn("Birkin Codex", output)
         self.assertIn("Commands: /help", output)
         self.assertIn("bye", output)
+
+    def test_interactive_live_command_selects_model(self) -> None:
+        workspace = self.make_workspace()
+        with (
+            patch("birkin_agent.cli.ws", return_value=workspace),
+            patch("birkin_agent.cli.choose_live_model", return_value=("api-agent", "Using test live profile.")),
+            patch("builtins.input", side_effect=["/live", "/exit"]),
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+        ):
+            self.assertEqual(cli_main([]), 0)
+        output = stdout.getvalue()
+        self.assertIn("live mode on: model=api-agent execute=on", output)
+        self.assertIn("Using test live profile.", output)
 
     def test_obsidian_memory_recall_and_ledger(self) -> None:
         workspace = self.make_workspace()

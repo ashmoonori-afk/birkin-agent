@@ -291,6 +291,91 @@ Store secrets in the local CLI auth store or environment variables, not in `birk
 
 
 DEFAULT_SCRIPT_FILES = {
+    "scripts/install.sh": """#!/usr/bin/env sh
+# Birkin Codex one-line installer for macOS, Linux, and WSL.
+#
+#   curl -fsSL https://raw.githubusercontent.com/ashmoonori-afk/birkin-agent/main/scripts/install.sh | sh
+#
+# Installs the `birkin-codex` command with uv, pipx, or pip --user.
+set -eu
+
+REPO="${BIRKIN_REPO:-https://github.com/ashmoonori-afk/birkin-agent}"
+REF="${BIRKIN_REF:-main}"
+SPEC="git+${REPO}@${REF}"
+
+printf '==> Installing birkin-codex from %s\\n' "$SPEC"
+
+if command -v uv >/dev/null 2>&1; then
+  printf '    using uv\\n'
+  uv tool install --force "$SPEC"
+elif command -v pipx >/dev/null 2>&1; then
+  printf '    using pipx\\n'
+  pipx install --force "$SPEC"
+elif command -v python3 >/dev/null 2>&1; then
+  printf '    using pip --user\\n'
+  python3 -m pip install --user --upgrade "$SPEC"
+else
+  printf '!! Need one of: uv, pipx, or python3. Install Python 3.11+ first.\\n' >&2
+  exit 1
+fi
+
+printf '\\n==> Done. Start here:\\n'
+printf '    birkin-codex setup wizard\\n'
+printf '    birkin-codex\\n'
+printf '    birkin-codex web --port 8765\\n'
+printf '\\n'
+if ! command -v birkin-codex >/dev/null 2>&1; then
+  printf 'Note: if birkin-codex is not found, add your tool bin directory to PATH.\\n'
+  printf '      Common locations: ~/.local/bin, pipx bin path, or uv tool dir.\\n'
+fi
+""",
+    "scripts/install.ps1": """# Birkin Codex one-line installer for Windows PowerShell.
+#
+#   irm https://raw.githubusercontent.com/ashmoonori-afk/birkin-agent/main/scripts/install.ps1 | iex
+#
+# Installs the `birkin-codex` command with uv, pipx, or pip --user.
+$ErrorActionPreference = "Stop"
+
+$Repo = if ($env:BIRKIN_REPO) { $env:BIRKIN_REPO } else { "https://github.com/ashmoonori-afk/birkin-agent" }
+$Ref = if ($env:BIRKIN_REF) { $env:BIRKIN_REF } else { "main" }
+$Spec = "git+$Repo@$Ref"
+
+Write-Host "==> Installing birkin-codex from $Spec"
+
+function Have($Name) {
+  return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
+}
+
+if (Have "uv") {
+  Write-Host "    using uv"
+  uv tool install --force $Spec
+} elseif (Have "pipx") {
+  Write-Host "    using pipx"
+  pipx install --force $Spec
+} elseif (Have "python") {
+  Write-Host "    using pip --user"
+  python -m pip install --user --upgrade $Spec
+} elseif (Have "py") {
+  Write-Host "    using pip --user"
+  py -3.11 -m pip install --user --upgrade $Spec
+  if ($LASTEXITCODE -ne 0) {
+    py -m pip install --user --upgrade $Spec
+  }
+} else {
+  Write-Error "Need one of: uv, pipx, python, or py. Install Python 3.11+ first."
+  exit 1
+}
+
+Write-Host ""
+Write-Host "==> Done. Start here:"
+Write-Host "    birkin-codex setup wizard"
+Write-Host "    birkin-codex"
+Write-Host "    birkin-codex web --port 8765"
+if (-not (Have "birkin-codex")) {
+  Write-Host ""
+  Write-Host "Note: if birkin-codex is not found, add your Python/uv/pipx Scripts directory to PATH."
+}
+""",
     "scripts/setup": """#!/usr/bin/env sh
 set -eu
 
@@ -574,11 +659,19 @@ Open `http://127.0.0.1:8765`.
 
 ## Hermes-Style Setup
 
+One-line install:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ashmoonori-afk/birkin-agent/main/scripts/install.sh | sh
+birkin-codex
+```
+
+Editable source setup:
+
 ```sh
 cd birkin-agent
 ./scripts/setup
 source .venv/bin/activate
-birkin-codex setup
 birkin-codex
 ```
 
@@ -647,7 +740,11 @@ Chat through the default packet-only profile:
 ```sh
 birkin-codex
 birkin-codex chat --message "Summarize this workspace" --model packet
-```"""
+```
+
+Inside interactive chat, `/live` selects `api-agent` when `OPENAI_API_KEY` is present
+or `codex-local` when the local `codex` CLI is available.
+"""
 
 
 DEFAULT_DASHBOARD_DOC = r"""# Dashboard
@@ -941,6 +1038,26 @@ Scope date: 2026-05-27.
 Birkin includes Hermes-style setup checks, an interactive chat surface, and skill
 configuration verification.
 
+## One-Line Install
+
+macOS, Linux, and WSL:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ashmoonori-afk/birkin-agent/main/scripts/install.sh | sh
+birkin-codex
+```
+
+Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/ashmoonori-afk/birkin-agent/main/scripts/install.ps1 | iex
+birkin-codex
+```
+
+The installer uses `uv`, `pipx`, or `pip --user`, whichever is available. The
+source checkout still supports `scripts/setup` and `scripts/setup.ps1` for editable
+local development.
+
 ## Setup Check
 
 Run the setup check before using real model execution:
@@ -981,7 +1098,9 @@ birkin-codex
 
 Interactive commands:
 
+- `/live` switches to the best available live model profile and turns execution on.
 - `/setup` shows readiness checks.
+- `/dashboard` shows the local dashboard command and URL.
 - `/skills` shows skill configuration checks.
 - `/model ID` switches the model profile for the current chat.
 - `/execute on` allows the selected runner to execute.
@@ -993,6 +1112,10 @@ Packet-only chat:
 ```sh
 birkin-codex chat --message "Summarize this workspace" --model packet
 ```
+
+Packet mode is the first-run success path. It creates a run record, recalls memory,
+captures the conversation, and explains how to switch to live execution without
+requiring API keys up front.
 
 Executed chat through a configured model profile:
 
@@ -1211,12 +1334,30 @@ and acts through approval-first governance.
 
 ## Quick Start
 
+One-line install:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ashmoonori-afk/birkin-agent/main/scripts/install.sh | sh
+birkin-codex
+```
+
+Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/ashmoonori-afk/birkin-agent/main/scripts/install.ps1 | iex
+birkin-codex
+```
+
+Editable source checkout:
+
 ```sh
 python -m pip install -e .
-birkin-codex setup
 birkin-codex
 birkin-codex web --port 8765
 ```
+
+First run starts in safe packet mode and still creates a run record plus memory note.
+Use `/live` in chat after connecting a local CLI or API model.
 
 ## Core Surfaces
 

@@ -5,6 +5,26 @@ Scope date: 2026-05-28.
 Birkin includes Hermes-style setup checks, an interactive chat surface, and skill
 configuration verification.
 
+## One-Line Install
+
+macOS, Linux, and WSL:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ashmoonori-afk/birkin-agent/main/scripts/install.sh | sh
+birkin-codex
+```
+
+Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/ashmoonori-afk/birkin-agent/main/scripts/install.ps1 | iex
+birkin-codex
+```
+
+The installer uses `uv`, `pipx`, or `pip --user`, whichever is available. The
+source checkout still supports `scripts/setup` and `scripts/setup.ps1` for editable
+local development.
+
 ## Setup Check
 
 Run the setup check before using real model execution:
@@ -49,7 +69,9 @@ birkin-codex
 
 Interactive commands:
 
+- `/live` switches to the best available live model profile and turns execution on.
 - `/setup` shows readiness checks.
+- `/dashboard` shows the local dashboard command and URL.
 - `/skills` shows skill configuration checks.
 - `/model ID` switches the model profile for the current chat.
 - `/execute on` allows the selected runner to execute.
@@ -61,6 +83,10 @@ Packet-only chat:
 ```sh
 birkin-codex chat --message "Summarize this workspace" --model packet
 ```
+
+Packet mode is the first-run success path. It creates a run record, recalls memory,
+captures the conversation, and explains how to switch to live execution without
+requiring API keys up front.
 
 Executed chat through a configured model profile:
 

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
+import shutil
 import sys
 
 from .agents import add_agent, agent_rows, build_packet, run_agent, validate_agents
@@ -32,7 +34,7 @@ from .memory import (
     record_feedback,
     validate_memory,
 )
-from .models import add_model_profile, model_rows, use_model_profile, validate_models
+from .models import add_model_profile, model_profile_map, model_rows, use_model_profile, validate_models
 from .morpheus import run_morpheus
 from .reliability import budget_status, health_checks, reliability_rows, trace_rows
 from .scheduler import daemon_status, run_daemon, schedule_rows
@@ -1214,7 +1216,8 @@ def cmd_chat_interactive(args: argparse.Namespace) -> int:
     history: list[dict[str, str]] = []
 
     print("Birkin Codex")
-    print("Type a message to chat. Commands: /help, /setup, /skills, /model ID, /execute on|off, /exit")
+    print("Type a task. Safe mode works immediately and saves a run + memory.")
+    print("Commands: /help, /live, /setup, /dashboard, /skills, /model ID, /execute on|off, /exit")
     print(f"agent={agent_id or 'chat'} model={model_name or 'default'} execute={'on' if execute else 'off'}")
 
     while True:
@@ -1235,15 +1238,31 @@ def cmd_chat_interactive(args: argparse.Namespace) -> int:
             return 0
         if lowered == "/help":
             print("Commands:")
+            print("  /live           use the best available live model and turn execution on")
             print("  /setup          show setup readiness")
+            print("  /dashboard      show the local dashboard command")
             print("  /skills         show skill configuration checks")
             print("  /model ID       switch model profile for this chat")
             print("  /execute on     allow the selected runner to execute")
             print("  /execute off    packet-only safe mode")
             print("  /exit           leave chat")
             continue
+        if lowered == "/live":
+            selected, detail = choose_live_model(workspace)
+            if not selected:
+                print(detail)
+                continue
+            model_name = selected
+            execute = True
+            print(f"live mode on: model={model_name} execute=on")
+            print(detail)
+            continue
         if lowered == "/setup":
             print_table(setup_rows(workspace), ["step", "status", "detail", "command"])
+            continue
+        if lowered == "/dashboard":
+            print("Run: birkin-codex web --port 8765")
+            print("Then open: http://127.0.0.1:8765")
             continue
         if lowered == "/skills":
             print_table(skill_config_rows(workspace), ["check", "status", "detail"])
@@ -1280,3 +1299,23 @@ def cmd_chat_interactive(args: argparse.Namespace) -> int:
         print(f"record {payload['record']}")
         history.append({"role": "user", "content": message})
         history.append({"role": "assistant", "content": reply})
+
+
+def choose_live_model(workspace: Workspace) -> tuple[str | None, str]:
+    profiles = model_profile_map(workspace)
+    if "api-agent" in profiles and os.getenv("OPENAI_API_KEY"):
+        return "api-agent", "Using OpenAI-compatible tool-agent profile from OPENAI_API_KEY."
+    if "codex-local" in profiles and shutil.which("codex"):
+        return "codex-local", "Using local Codex CLI profile. OAuth/login stays in the Codex CLI."
+    for profile_id, profile in profiles.items():
+        if profile_id in {"api-agent", "codex-local"}:
+            continue
+        if profile.runner == "local-cli" and profile.command and shutil.which(profile.command[0]):
+            return profile_id, f"Using configured live profile {profile_id} ({profile.runner})."
+        if profile.runner in {"api", "tool-agent"} and os.getenv("OPENAI_API_KEY"):
+            return profile_id, f"Using configured live profile {profile_id} ({profile.runner})."
+    return (
+        None,
+        "Live mode needs a configured runner. Run `birkin-codex setup wizard`, "
+        "`birkin-codex auth login codex-cli`, or set OPENAI_API_KEY for `api-agent`.",
+    )

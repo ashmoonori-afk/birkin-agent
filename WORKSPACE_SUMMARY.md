@@ -16,6 +16,10 @@ Morpheus self-improvement, a machine-facing gateway, and a local SaaS-style dash
 - Primary CLI entrypoint: `birkin-codex` via editable install. With no arguments it opens
   the Hermes-style interactive chat CLI.
 - Compatibility CLI alias: `birkin`.
+- One-line installers: `scripts/install.sh` for macOS/Linux/WSL and
+  `scripts/install.ps1` for Windows PowerShell. Both install from
+  `https://github.com/ashmoonori-afk/birkin-agent` with `uv`, `pipx`, or
+  `pip --user`, and honor `BIRKIN_REPO`/`BIRKIN_REF` overrides.
 - Script entrypoints: `scripts/setup`, `scripts/setup.ps1`, `scripts/birkin-codex`,
   `scripts/birkin-codex.ps1`, `scripts/birkin`, and `scripts/birkin.ps1`.
 - Model profiles: `packet`, `codex-local`, `api-openai`, `api-agent`, and
@@ -65,6 +69,14 @@ Morpheus self-improvement, a machine-facing gateway, and a local SaaS-style dash
   `skills config` now includes registry consistency and skill-safety rows.
 - Setup wizard: model selection, Obsidian vault setup, Telegram onboarding, and optional
   Telegram inbound.
+- Chat-first UX: no-argument `birkin-codex` opens the interactive chat with safe packet
+  mode explained up front. Packet-only chat now returns a first-run success message that
+  confirms a run record was created and explains live execution instead of only reporting
+  that no model runner executed. The chat payload still includes `memoryNote` when memory
+  capture succeeds.
+- Live chat handoff: `/live` selects `api-agent` when `OPENAI_API_KEY` is present,
+  `codex-local` when the local `codex` CLI is available, or another runnable configured
+  profile, then turns execution on for the current chat.
 - Default agents: planner, builder, reviewer, researcher, operator, and chat.
 - Upstream skills: 90 Hermes and 57 OpenClaw exact mirrored upstream skill directories,
   with 147 mirrored upstream skills and 0 missing directories.
@@ -93,7 +105,7 @@ Kept different:
 - `py -m pip install -e .`: passed. The Python script directory is not on this shell's
   PATH, so CLI smoke commands prepended the installed Scripts directory for this session.
 - `py -m compileall -q src tests tools`: passed.
-- `py -m unittest discover -s tests`: 29 tests passed.
+- `py -m unittest discover -s tests`: 30 tests passed.
 - `git diff --check -- . ':!skills/upstream'`: passed.
 - `birkin-codex doctor`: `ok` with expected warnings for missing `OPENAI_API_KEY` and
   Telegram not enabled.
@@ -115,6 +127,7 @@ Kept different:
 - Gateway smoke on `127.0.0.1:8772`: `/health`, `/api/reliability`, and `/api/learning`
   passed, including reliability replay records.
 - Code review note: `reviews/2026-05-28-verified-learning-reliability-review.md`.
+- Latest code review note: `reviews/2026-05-28-installer-chat-ux-review.md`.
 
 ## Git Target
 

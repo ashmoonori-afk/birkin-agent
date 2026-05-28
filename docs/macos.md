@@ -25,11 +25,19 @@ Open `http://127.0.0.1:8765`.
 
 ## Hermes-Style Setup
 
+One-line install:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ashmoonori-afk/birkin-agent/main/scripts/install.sh | sh
+birkin-codex
+```
+
+Editable source setup:
+
 ```sh
 cd birkin-agent
 ./scripts/setup
 source .venv/bin/activate
-birkin-codex setup
 birkin-codex
 ```
 
@@ -113,3 +121,6 @@ Chat through the default packet-only profile:
 birkin-codex
 birkin-codex chat --message "Summarize this workspace" --model packet
 ```
+
+Inside interactive chat, `/live` selects `api-agent` when `OPENAI_API_KEY` is present
+or `codex-local` when the local `codex` CLI is available.

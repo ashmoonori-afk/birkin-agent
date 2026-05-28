@@ -76,7 +76,7 @@ class Workspace:
             if force or not path.exists():
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(content, encoding="utf-8")
-                if not path.suffix:
+                if not path.suffix or path.suffix == ".sh":
                     path.chmod(path.stat().st_mode | 0o755)
                 created.append(path)
         readme = self.rel("README.md")

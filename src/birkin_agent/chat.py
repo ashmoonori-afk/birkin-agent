@@ -80,7 +80,7 @@ def run_chat(
     payload = json.loads(record.read_text(encoding="utf-8"))
     reply = str(result.get("stdout") or "").strip()
     if not reply:
-        reply = str(payload.get("summary") or "Prompt packet built; runner was not executed.")
+        reply = packet_success_reply(payload, result, recalled)
     chat_payload = {
         "record": str(record),
         "agent": selected_agent,
@@ -98,3 +98,29 @@ def run_chat(
     except Exception as exc:
         chat_payload["memoryError"] = str(exc)
     return chat_payload
+
+
+def packet_success_reply(
+    payload: dict[str, Any],
+    result: dict[str, Any],
+    recalled: list[dict[str, str]],
+) -> str:
+    packet = result.get("packet") if isinstance(result.get("packet"), dict) else payload.get("packet") or {}
+    skills = packet.get("skills") if isinstance(packet, dict) else []
+    model = payload.get("model") if isinstance(payload.get("model"), dict) else {}
+    record = str(payload.get("record") or "")
+    summary = str(payload.get("summary") or "").strip()
+    if summary and "Prompt packet built" not in summary:
+        return summary
+    lines = [
+        f"Prompt packet built with {len(skills or [])} skills and saved as a run record.",
+        "Safe mode did not call a model, so this first run works without API keys.",
+    ]
+    if recalled:
+        lines.append(f"Recalled {len(recalled)} memory note(s) before building the task.")
+    if model:
+        lines.append(f"Current model profile: {model.get('id') or 'packet'} ({model.get('runner') or 'dry-run'}).")
+    if record:
+        lines.append(f"Record: {record}")
+    lines.append("For a live answer, use `/live` in chat or run `birkin-codex setup wizard` to connect a model.")
+    return "\n".join(lines)

@@ -41,6 +41,27 @@ inspectable, and portable across Windows, macOS, and Linux.
 
 ## Quick Start
 
+### One-Line Install
+
+macOS, Linux, and WSL:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ashmoonori-afk/birkin-agent/main/scripts/install.sh | sh
+birkin-codex
+```
+
+Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/ashmoonori-afk/birkin-agent/main/scripts/install.ps1 | iex
+birkin-codex
+```
+
+First run opens the chat CLI. It starts in safe packet mode, so it can create a
+run record and memory note before any API key or local model is configured. Use
+`/live` inside chat when you want Birkin to switch to a connected local CLI or API
+model.
+
 ### macOS and Linux
 
 ```sh
@@ -48,7 +69,6 @@ git clone https://github.com/ashmoonori-afk/birkin-agent.git
 cd birkin-agent
 ./scripts/setup
 source .venv/bin/activate
-birkin-codex setup
 birkin-codex
 ```
 
@@ -59,7 +79,6 @@ git clone https://github.com/ashmoonori-afk/birkin-agent.git
 cd birkin-agent
 .\scripts\setup.ps1
 . .\.venv\Scripts\Activate.ps1
-birkin-codex setup
 birkin-codex
 ```
 
@@ -71,18 +90,25 @@ birkin-codex web --port 8765
 
 ## Core Commands
 
+Everyday loop:
+
 ```sh
 birkin-codex
-birkin-codex doctor
-birkin-codex setup
 birkin-codex setup wizard
+birkin-codex chat --message "Summarize this workspace" --model packet
 birkin-codex model list
 birkin-codex model use codex-local
+birkin-codex memory search "model preference" --type preference --scope project
+```
+
+Operations and governance:
+
+```sh
+birkin-codex doctor
 birkin-codex auth list
 birkin-codex api list
 birkin-codex gateway status
 birkin-codex gateway run --port 8770
-birkin-codex memory search "model preference" --type preference --scope project
 birkin-codex learning list
 birkin-codex learning events
 birkin-codex learning approve <proposal-id>
@@ -95,7 +121,6 @@ birkin-codex skills validate
 birkin-codex skills config
 birkin-codex skills safety
 birkin-codex morpheus --dry-run
-birkin-codex chat --message "Summarize this workspace" --model packet
 ```
 
 ## Implemented

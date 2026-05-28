@@ -157,6 +157,10 @@ Kept different:
 - Interactive skill smoke with piped chat input passed: `/skills` shows a compact
   enabled-skill catalog, `/skill memory-recall` shows detail and the body command, and
   `/skills health` shows the full catalog health table.
+- Full structure and agent review passed the green-path checks but found risk areas:
+  non-local Web UI/gateway bind exposure, tool-agent turn-limit runs recorded as `ok`,
+  pip wheels shipping only bundled `SKILL.md` files instead of support assets, and
+  interactive `/model` accepting missing profiles silently.
 - `birkin-codex skills validate`: `ok`.
 - `birkin-codex skills config`: passed with 168 discovered skills, 15 enabled, 90 Hermes
   reflections, 57 OpenClaw reflections, and 147 mirrored upstream skills.
@@ -201,6 +205,8 @@ Kept different:
 - Startup/slash/skills review note: `reviews/2026-05-28-startup-slash-skills-review.md`.
 - Latest code review note: `reviews/2026-05-28-update-command-review.md`.
 - Skills display review note: `reviews/2026-05-28-skills-display-review.md`.
+- Full structure/agent review note:
+  `reviews/2026-05-28-full-structure-agent-review.md`.
 
 ## Git Target
 

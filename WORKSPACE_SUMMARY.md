@@ -24,7 +24,9 @@ Morpheus self-improvement, a machine-facing gateway, and a local SaaS-style dash
   `api`, and OpenAI-compatible `tool-agent`.
 - Tool-agent runtime: can load skills, write/search/get/link memory, read/list files,
   queue file writes, queue shell/web/Telegram/schedule actions, and spawn scoped
-  packet-only subagents.
+  packet-only subagents. If a tool-agent attempts to replace an existing memory note
+  without an expected version or append mode, Birkin queues a verified-learning proposal
+  instead of overwriting it.
 - Approval gate: `birkin-codex approvals list|approve|reject`; pending approvals are
   stored under `approvals/pending` and history under `approvals/history`. Approval rows
   now include risk tier, evidence count, affected resources, dry-run preview, and
@@ -89,7 +91,7 @@ Kept different:
 - `py -m pip install -e .`: passed. The Python script directory is not on this shell's
   PATH, so CLI smoke commands prepended the installed Scripts directory for this session.
 - `py -m compileall -q src tests tools`: passed.
-- `py -m unittest discover -s tests`: 27 tests passed.
+- `py -m unittest discover -s tests`: 28 tests passed.
 - `git diff --check -- . ':!skills/upstream'`: passed.
 - `birkin-codex doctor`: `ok` with expected warnings for missing `OPENAI_API_KEY` and
   Telegram not enabled.

@@ -9,7 +9,7 @@ from urllib.request import Request, urlopen
 
 from .api import endpoint_url, resolve_api_profile
 from .approvals import propose_action
-from .memory import memory_get_note, memory_link, memory_search, memory_write_note
+from .memory import find_note_by_title, memory_get_note, memory_link, memory_search, memory_write_note
 from .skills import create_skill, discover_skills, parse_frontmatter
 from .util import is_relative_to
 from .workspace import Workspace
@@ -283,6 +283,7 @@ def build_registry(workspace: Workspace, packet: dict[str, Any]) -> ToolRegistry
                 "ttlDays": {"type": "integer"},
                 "scope": {"type": "object"},
                 "reason": {"type": "string"},
+                "expectedVersion": {"type": "integer"},
                 "append": {"type": "boolean"},
             },
             required=["title", "body"],
@@ -412,11 +413,48 @@ def create_skill_tool(workspace: Workspace, args: dict[str, Any]) -> ToolResult:
 
 
 def memory_write_tool(workspace: Workspace, args: dict[str, Any]) -> ToolResult:
+    title = str(args.get("title") or "")
+    body = str(args.get("body") or "")
+    kind = str(args.get("kind") or "feedback")
+    append = bool(args.get("append") or False)
+    expected_version = int(args.get("expectedVersion") or 0) or None
+    existing = find_note_by_title(workspace, title, kind)
+    if existing and not append and expected_version is None:
+        from .learning import add_learning_proposal
+
+        before = existing.read_text(encoding="utf-8", errors="replace")
+        proposal = add_learning_proposal(
+            workspace,
+            target_type="memory",
+            target=title,
+            action="memory-write",
+            before=before,
+            after=body,
+            evidence=args.get("evidence") if isinstance(args.get("evidence"), list) else args.get("sources"),
+            confidence=float(args.get("confidence") or 0.7),
+            ttl_days=int(args.get("ttlDays") or 0) or None,
+            scope=args.get("scope") if isinstance(args.get("scope"), dict) else {},
+            agent="tool-agent",
+            reason=str(args.get("reason") or "tool-agent proposed memory overwrite"),
+            risk_tier="review",
+            apply_payload={
+                "kind": "memory-note",
+                "title": title,
+                "body": body,
+                "memoryKind": kind,
+                "noteType": str(args.get("type") or "topic"),
+                "tags": [str(item) for item in args.get("tags") or []],
+                "links": [str(item) for item in args.get("links") or []],
+                "append": False,
+                "scope": args.get("scope") if isinstance(args.get("scope"), dict) else {},
+            },
+        )
+        return ToolResult(f"queued learning proposal {proposal.id} for existing memory note")
     note = memory_write_note(
         workspace,
-        str(args.get("title") or ""),
-        str(args.get("body") or ""),
-        kind=str(args.get("kind") or "feedback"),
+        title,
+        body,
+        kind=kind,
         note_type=str(args.get("type") or "topic"),
         tags=[str(item) for item in args.get("tags") or []],
         links=[str(item) for item in args.get("links") or []],
@@ -427,7 +465,8 @@ def memory_write_tool(workspace: Workspace, args: dict[str, Any]) -> ToolResult:
         scope=args.get("scope") if isinstance(args.get("scope"), dict) else {},
         agent="tool-agent",
         reason=str(args.get("reason") or "tool-agent memory write"),
-        append=bool(args.get("append") or False),
+        expected_version=expected_version,
+        append=append,
     )
     return ToolResult(f"wrote {note.path.relative_to(workspace.root)}")
 

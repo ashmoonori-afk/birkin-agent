@@ -41,6 +41,7 @@ from birkin_agent.memory import (
 from birkin_agent.models import render_model_command, resolve_model_profile, use_model_profile, validate_models
 from birkin_agent.morpheus import run_morpheus
 from birkin_agent.reliability import budget_status, health_checks, reliability_rows, trace_rows
+from birkin_agent.runtime import memory_write_tool
 from birkin_agent.setup import setup_report
 from birkin_agent.skills import create_skill, discover_skills, immutable_skill, skill_config_rows, skill_safety_rows, validate_skills
 from birkin_agent.telegram import configure_telegram, telegram_status, validate_telegram
@@ -499,6 +500,31 @@ class WorkspaceTest(unittest.TestCase):
         memory_write_event = next(row for row in events if row["action"] == "memory-write")
         rollback = rollback_learning(workspace, memory_write_event["id"])
         self.assertIn("removed", rollback["result"])
+
+    def test_tool_memory_overwrite_becomes_learning_proposal(self) -> None:
+        workspace = self.make_workspace()
+        memory_write_note(
+            workspace,
+            "Manual Memory",
+            "This note was written manually.",
+            kind="feedback",
+            note_type="feedback",
+            author="user",
+            evidence=[{"type": "feedback", "ref": "manual"}],
+        )
+        result = memory_write_tool(
+            workspace,
+            {
+                "title": "Manual Memory",
+                "body": "A tool-agent wants to replace it.",
+                "kind": "feedback",
+                "type": "feedback",
+                "sources": ["run:tool-agent"],
+            },
+        )
+        self.assertIn("queued learning proposal", result.content)
+        self.assertEqual(memory_get_note(workspace, "Manual Memory")["body"], "This note was written manually.")
+        self.assertEqual(len(learning_proposal_rows(workspace)), 1)
 
     def test_approvals_queue_and_resolve_file_write(self) -> None:
         workspace = self.make_workspace()

@@ -21,6 +21,8 @@ No blocking findings remain.
   skill file path, mtime, size, enabled, and disabled state.
 - Verified-learning event IDs now include the action to avoid same-second collisions
   between proposal and applied events for the same target.
+- Tool-agent memory writes now queue a verified-learning proposal instead of overwriting
+  an existing memory note unless an expected version is supplied or append mode is used.
 
 ## Residual Risk
 
@@ -36,7 +38,7 @@ No blocking findings remain.
 
 - `py -m pip install -e .`
 - `py -m compileall -q src tests tools`
-- `py -m unittest discover -s tests`
+- `py -m unittest discover -s tests` (28 tests)
 - `git diff --check -- . ':!skills/upstream'`
 - `birkin-codex doctor`
 - `birkin-codex skills validate`

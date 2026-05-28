@@ -23,6 +23,8 @@ No blocking findings remain.
   between proposal and applied events for the same target.
 - Tool-agent memory writes now queue a verified-learning proposal instead of overwriting
   an existing memory note unless an expected version is supplied or append mode is used.
+- Dashboard and gateway learning APIs expose show and rollback actions in addition to
+  list, approve, and reject.
 
 ## Residual Risk
 

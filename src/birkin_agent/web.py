@@ -8,7 +8,7 @@ from .approvals import approval_rows, approve, reject
 from .agents import run_agent
 from .chat import run_chat
 from .dashboard import dashboard_data
-from .learning import approve_learning, learning_proposal_rows, reject_learning, show_learning_proposal
+from .learning import approve_learning, learning_proposal_rows, reject_learning, rollback_learning, show_learning_proposal
 from .morpheus import run_morpheus
 from .workspace import Workspace
 
@@ -326,7 +326,7 @@ INDEX_HTML = """<!doctype html>
       <section id="ledger"><div class="panel"><h2>Ledger Summary</h2><pre id="ledger-json"></pre></div><div class="panel"><h2>Ledger Rows</h2><table id="ledger-table"></table></div></section>
       <section id="telegram"><div class="panel"><h2>Telegram</h2><table id="telegram-table"></table></div></section>
       <section id="approvals"><div class="panel"><h2>Pending Approvals</h2><table id="approvals-table"></table></div></section>
-      <section id="learning"><div class="panel"><h2>Verified Learning Proposals</h2><table id="learning-table"></table></div><div class="panel"><h2>Learning Events</h2><table id="learning-events-table"></table></div></section>
+      <section id="learning"><div class="panel"><h2>Verified Learning Proposals</h2><table id="learning-table"></table><pre id="learning-detail"></pre></div><div class="panel"><h2>Learning Events</h2><table id="learning-events-table"></table></div></section>
       <section id="reliability"><div class="panel"><h2>Health</h2><table id="health-table"></table></div><div class="panel"><h2>Budget</h2><pre id="budget-json"></pre></div><div class="panel"><h2>Trace Timeline</h2><table id="traces-table"></table></div><div class="panel"><h2>Delivery / Reliability Log</h2><table id="reliability-table"></table></div></section>
       <section id="morpheus"><div class="panel"><div class="panel-head"><h2>Morpheus</h2><button class="button" id="morpheus-dry-run">Dry Run</button></div><pre id="morpheus-json"></pre><pre id="morpheus-result"></pre></div><div class="panel"><h2>Schedules</h2><table id="schedules-table"></table></div><div class="panel"><h2>Daemon</h2><pre id="daemon-json"></pre></div></section>
       <section id="skills"><div class="panel"><h2>Skills</h2><table id="skills-table"></table></div></section>
@@ -445,7 +445,23 @@ INDEX_HTML = """<!doctype html>
         <td>${esc(row.reason)}</td>
         <td>${esc(row.created)}</td>
         <td>${esc(row.id)}</td>
-        <td><button class="button" onclick="resolveLearning('${esc(row.id)}','approve')">Approve</button> <button class="button" onclick="resolveLearning('${esc(row.id)}','reject')">Reject</button></td>
+        <td><button class="button" onclick="resolveLearning('${esc(row.id)}','show')">Show</button> <button class="button" onclick="resolveLearning('${esc(row.id)}','approve')">Approve</button> <button class="button" onclick="resolveLearning('${esc(row.id)}','reject')">Reject</button></td>
+      </tr>`).join("");
+      el.innerHTML = head + body;
+    }
+    function renderLearningEvents(el, rows) {
+      if (!rows.length) { el.innerHTML = `<tr><td class="empty" colspan="9">No learning events.</td></tr>`; return; }
+      const head = "<tr><th>Timestamp</th><th>Status</th><th>Action</th><th>Type</th><th>Target</th><th>Confidence</th><th>Evidence</th><th>Reason</th><th>Rollback</th></tr>";
+      const body = rows.map(row => `<tr>
+        <td>${esc(row.timestamp)}</td>
+        <td>${statusChip(row.status)}</td>
+        <td>${esc(row.action)}</td>
+        <td>${esc(row.targetType)}</td>
+        <td>${esc(row.target)}</td>
+        <td>${esc(row.confidence)}</td>
+        <td>${esc(row.evidenceStrength)}</td>
+        <td>${esc(row.reason)}</td>
+        <td><button class="button" onclick="resolveLearning('${esc(row.id)}','rollback')">Rollback</button></td>
       </tr>`).join("");
       el.innerHTML = head + body;
     }
@@ -458,11 +474,15 @@ INDEX_HTML = """<!doctype html>
       await load();
     }
     async function resolveLearning(id, action) {
-      await fetch("/api/learning", {
+      const res = await fetch("/api/learning", {
         method: "POST",
         headers: {"content-type": "application/json"},
         body: JSON.stringify({id, action})
       });
+      const payload = await res.json();
+      if (action === "show" || payload.error) {
+        document.querySelector("#learning-detail").textContent = JSON.stringify(payload, null, 2);
+      }
       await load();
     }
     async function load() {
@@ -557,16 +577,7 @@ INDEX_HTML = """<!doctype html>
       ]);
       renderApprovals(document.querySelector("#approvals-table"), d.approvals || []);
       renderLearning(document.querySelector("#learning-table"), d.learningProposals || []);
-      table(document.querySelector("#learning-events-table"), d.learningEvents || [], [
-        {key: "timestamp", label: "Timestamp"},
-        {key: "status", label: "Status"},
-        {key: "action", label: "Action"},
-        {key: "targetType", label: "Type"},
-        {key: "target", label: "Target"},
-        {key: "confidence", label: "Confidence"},
-        {key: "evidenceStrength", label: "Evidence"},
-        {key: "reason", label: "Reason"}
-      ], { status: statusChip });
+      renderLearningEvents(document.querySelector("#learning-events-table"), d.learningEvents || []);
       table(document.querySelector("#health-table"), d.health || [], [
         {key: "name", label: "Name"},
         {key: "status", label: "Status"},
@@ -833,16 +844,18 @@ class Handler(BaseHTTPRequestHandler):
                 return
             action = str(payload.get("action") or "").strip().lower()
             proposal_id = str(payload.get("id") or "").strip()
-            if action not in {"approve", "reject", "show"} or not proposal_id:
-                self.send_json({"error": "action approve/reject/show and id are required"}, 400)
+            if action not in {"approve", "reject", "show", "rollback"} or not proposal_id:
+                self.send_json({"error": "action approve/reject/show/rollback and id are required"}, 400)
                 return
             try:
                 if action == "approve":
                     result = approve_learning(self.workspace, proposal_id)
                 elif action == "reject":
                     result = reject_learning(self.workspace, proposal_id)
-                else:
+                elif action == "show":
                     result = show_learning_proposal(self.workspace, proposal_id)
+                else:
+                    result = rollback_learning(self.workspace, proposal_id)
             except Exception as exc:
                 self.send_json({"error": str(exc)}, 400)
                 return

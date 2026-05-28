@@ -13,7 +13,7 @@ from .agents import run_agent
 from .auth import auth_rows, run_auth_command, validate_auth
 from .chat import run_chat
 from .ledger import ledger_rows, ledger_summary
-from .learning import approve_learning, learning_event_rows, learning_proposal_rows, reject_learning
+from .learning import approve_learning, learning_event_rows, learning_proposal_rows, reject_learning, rollback_learning, show_learning_proposal
 from .memory import memory_status
 from .models import model_rows
 from .morpheus import run_morpheus
@@ -243,11 +243,18 @@ class GatewayHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/learning":
             action = str(payload.get("action") or "").strip().lower()
             proposal_id = str(payload.get("id") or "").strip()
-            if action not in {"approve", "reject"} or not proposal_id:
-                self.send_json({"error": "action approve/reject and id are required"}, 400)
+            if action not in {"approve", "reject", "show", "rollback"} or not proposal_id:
+                self.send_json({"error": "action approve/reject/show/rollback and id are required"}, 400)
                 return
             try:
-                result = approve_learning(self.workspace, proposal_id) if action == "approve" else reject_learning(self.workspace, proposal_id)
+                if action == "approve":
+                    result = approve_learning(self.workspace, proposal_id)
+                elif action == "reject":
+                    result = reject_learning(self.workspace, proposal_id)
+                elif action == "show":
+                    result = show_learning_proposal(self.workspace, proposal_id)
+                else:
+                    result = rollback_learning(self.workspace, proposal_id)
             except Exception as exc:
                 self.send_json({"error": str(exc)}, 400)
                 return

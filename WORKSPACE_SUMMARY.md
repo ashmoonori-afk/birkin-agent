@@ -57,7 +57,8 @@ Morpheus self-improvement, a machine-facing gateway, and a local SaaS-style dash
   based.
 - Web UI: `birkin-codex web --port 8765`, showing jobs, summaries, status, usage,
   warnings, models, auth, API, gateway, memory, ledger, Telegram, approvals, learning,
-  reliability, Morpheus, schedules, skills, agents, setup, and chat.
+  reliability, Morpheus, schedules, skills, agents, setup, and chat. The learning tab can
+  list, show, approve, reject, and rollback learning records through the local API.
 - Skill safety: `birkin-codex skills safety` lists permission manifest, version,
   author/source, computed hash, tests, last verified, immutable status, and path.
   `skills config` now includes registry consistency and skill-safety rows.

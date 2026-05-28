@@ -109,8 +109,12 @@ Kept different:
 
 ## Verification Snapshot
 
-- `py -m pip install -e .`: passed. The Python script directory is not on this shell's
-  PATH, so CLI smoke commands prepended the installed Scripts directory for this session.
+- `py -m pip install -e .`: passed for Python 3.13, but that Scripts directory is not
+  on this shell's PATH.
+- `py -3.12 -m pip install -e .`: passed and installed `birkin-codex` into a Scripts
+  directory already on PATH.
+- `birkin-codex mode status`: passed directly from the terminal and reported
+  `mode=lite`, `enabledCount=15`.
 - `py -m compileall -q src tests tools`: passed.
 - `py -m unittest discover -s tests`: 31 tests passed.
 - `git diff --check -- . ':!skills/upstream'`: passed.

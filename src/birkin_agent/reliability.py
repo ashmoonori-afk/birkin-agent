@@ -111,6 +111,23 @@ def delivery_rows(workspace: Workspace, limit: int = 50) -> list[dict[str, str]]
     return [row for row in reliability_rows(workspace, limit=limit * 2) if row["stage"] == "delivery"][:limit]
 
 
+def replay_rows(workspace: Workspace, limit: int = 50) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for row in delivery_rows(workspace, limit=limit):
+        rows.append(
+            {
+                "replayId": row["id"],
+                "traceId": row["traceId"],
+                "status": row["status"],
+                "resource": row["resource"],
+                "message": row["message"],
+                "replayable": "yes" if row["status"] in {"failed", "error", "timeout"} else "audit-only",
+                "timestamp": row["timestamp"],
+            }
+        )
+    return rows
+
+
 def health_checks(workspace: Workspace) -> list[dict[str, str]]:
     checks: list[dict[str, str]] = []
 

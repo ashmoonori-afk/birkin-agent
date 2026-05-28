@@ -327,7 +327,7 @@ INDEX_HTML = """<!doctype html>
       <section id="telegram"><div class="panel"><h2>Telegram</h2><table id="telegram-table"></table></div></section>
       <section id="approvals"><div class="panel"><h2>Pending Approvals</h2><table id="approvals-table"></table></div></section>
       <section id="learning"><div class="panel"><h2>Verified Learning Proposals</h2><table id="learning-table"></table><pre id="learning-detail"></pre></div><div class="panel"><h2>Learning Events</h2><table id="learning-events-table"></table></div></section>
-      <section id="reliability"><div class="panel"><h2>Health</h2><table id="health-table"></table></div><div class="panel"><h2>Budget</h2><pre id="budget-json"></pre></div><div class="panel"><h2>Trace Timeline</h2><table id="traces-table"></table></div><div class="panel"><h2>Delivery / Reliability Log</h2><table id="reliability-table"></table></div></section>
+      <section id="reliability"><div class="panel"><h2>Health</h2><table id="health-table"></table></div><div class="panel"><h2>Budget</h2><pre id="budget-json"></pre></div><div class="panel"><h2>Trace Timeline</h2><table id="traces-table"></table></div><div class="panel"><h2>Replay Records</h2><table id="replays-table"></table></div><div class="panel"><h2>Delivery / Reliability Log</h2><table id="reliability-table"></table></div></section>
       <section id="morpheus"><div class="panel"><div class="panel-head"><h2>Morpheus</h2><button class="button" id="morpheus-dry-run">Dry Run</button></div><pre id="morpheus-json"></pre><pre id="morpheus-result"></pre></div><div class="panel"><h2>Schedules</h2><table id="schedules-table"></table></div><div class="panel"><h2>Daemon</h2><pre id="daemon-json"></pre></div></section>
       <section id="skills"><div class="panel"><h2>Skills</h2><table id="skills-table"></table></div></section>
       <section id="agents"><div class="panel"><h2>Agents</h2><table id="agents-table"></table></div></section>
@@ -590,6 +590,14 @@ INDEX_HTML = """<!doctype html>
         {key: "stage", label: "Stage"},
         {key: "status", label: "Status"},
         {key: "resource", label: "Resource"},
+        {key: "message", label: "Message"}
+      ], { status: statusChip });
+      table(document.querySelector("#replays-table"), d.replays || [], [
+        {key: "timestamp", label: "Timestamp"},
+        {key: "traceId", label: "Trace"},
+        {key: "status", label: "Status"},
+        {key: "resource", label: "Resource"},
+        {key: "replayable", label: "Replayable"},
         {key: "message", label: "Message"}
       ], { status: statusChip });
       table(document.querySelector("#reliability-table"), d.reliability || [], [

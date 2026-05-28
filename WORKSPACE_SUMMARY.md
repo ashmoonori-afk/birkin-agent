@@ -26,7 +26,8 @@ Morpheus self-improvement, a machine-facing gateway, and a local SaaS-style dash
   queue file writes, queue shell/web/Telegram/schedule actions, and spawn scoped
   packet-only subagents. If a tool-agent attempts to replace an existing memory note
   without an expected version or append mode, Birkin queues a verified-learning proposal
-  instead of overwriting it.
+  instead of overwriting it. Tool-agent skill creation also becomes a learning proposal
+  rather than a direct `SKILL.md` write.
 - Approval gate: `birkin-codex approvals list|approve|reject`; pending approvals are
   stored under `approvals/pending` and history under `approvals/history`. Approval rows
   now include risk tier, evidence count, affected resources, dry-run preview, and
@@ -45,7 +46,7 @@ Morpheus self-improvement, a machine-facing gateway, and a local SaaS-style dash
   and cost fields.
 - Reliability control plane: `src/birkin_agent/reliability.py` writes
   `reliability/events.jsonl`, exposes health checks, trace rows, delivery rows,
-  silent-failure warnings, and per-run/daily/monthly token budget status.
+  replay records, silent-failure warnings, and per-run/daily/monthly token budget status.
 - Telegram: env-only bot token config, explicit test-send, and optional inbound polling.
   Runtime-requested outbound sends go through approvals.
 - Morpheus: `birkin-codex morpheus --dry-run` and daemon support for the 04:00
@@ -92,7 +93,7 @@ Kept different:
 - `py -m pip install -e .`: passed. The Python script directory is not on this shell's
   PATH, so CLI smoke commands prepended the installed Scripts directory for this session.
 - `py -m compileall -q src tests tools`: passed.
-- `py -m unittest discover -s tests`: 28 tests passed.
+- `py -m unittest discover -s tests`: 29 tests passed.
 - `git diff --check -- . ':!skills/upstream'`: passed.
 - `birkin-codex doctor`: `ok` with expected warnings for missing `OPENAI_API_KEY` and
   Telegram not enabled.
@@ -110,9 +111,9 @@ Kept different:
 - `birkin-codex approvals list --json`: passed.
 - `birkin-codex gateway status --json`: passed and includes learning/reliability routes.
 - Dashboard smoke on `127.0.0.1:8768`: `/api/status` included learning proposals,
-  reliability log, traces, health, and budget fields.
+  reliability log, traces, replay records, health, and budget fields.
 - Gateway smoke on `127.0.0.1:8772`: `/health`, `/api/reliability`, and `/api/learning`
-  passed.
+  passed, including reliability replay records.
 - Code review note: `reviews/2026-05-28-verified-learning-reliability-review.md`.
 
 ## Git Target

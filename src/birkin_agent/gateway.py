@@ -17,7 +17,7 @@ from .learning import approve_learning, learning_event_rows, learning_proposal_r
 from .memory import memory_status
 from .models import model_rows
 from .morpheus import run_morpheus
-from .reliability import budget_status, health_checks, reliability_rows, trace_rows
+from .reliability import budget_status, health_checks, reliability_rows, replay_rows, trace_rows
 from .scheduler import daemon_status, schedule_rows
 from .skills import skill_config_rows
 from .telegram import run_telegram_inbound, telegram_status
@@ -197,7 +197,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
             self.send_json({"proposals": learning_proposal_rows(self.workspace), "events": learning_event_rows(self.workspace)})
             return
         if parsed.path == "/api/reliability":
-            self.send_json({"health": health_checks(self.workspace), "budget": budget_status(self.workspace), "traces": trace_rows(self.workspace), "log": reliability_rows(self.workspace)})
+            self.send_json({"health": health_checks(self.workspace), "budget": budget_status(self.workspace), "traces": trace_rows(self.workspace), "log": reliability_rows(self.workspace), "replays": replay_rows(self.workspace)})
             return
         if parsed.path == "/api/telegram":
             self.send_json({"telegram": telegram_status(self.workspace)})

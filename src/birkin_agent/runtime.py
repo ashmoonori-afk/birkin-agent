@@ -10,7 +10,7 @@ from urllib.request import Request, urlopen
 from .api import endpoint_url, resolve_api_profile
 from .approvals import propose_action
 from .memory import find_note_by_title, memory_get_note, memory_link, memory_search, memory_write_note
-from .skills import create_skill, discover_skills, parse_frontmatter
+from .skills import discover_skills, parse_frontmatter, render_skill_content
 from .util import is_relative_to
 from .workspace import Workspace
 
@@ -403,13 +403,31 @@ def load_skill_tool(workspace: Workspace, name: str) -> ToolResult:
 
 
 def create_skill_tool(workspace: Workspace, args: dict[str, Any]) -> ToolResult:
-    path = create_skill(
+    from .learning import add_learning_proposal
+    from .util import slugify
+
+    name = str(args.get("name") or "")
+    description = str(args.get("description") or "")
+    group = str(args.get("group") or "custom")
+    rel_path = Path("skills") / slugify(group) / slugify(name) / "SKILL.md"
+    path = workspace.rel(str(rel_path))
+    before = path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
+    after = render_skill_content(name, description)
+    proposal = add_learning_proposal(
         workspace,
-        str(args.get("name") or ""),
-        str(args.get("description") or ""),
-        str(args.get("group") or "custom"),
+        target_type="skill",
+        target=name,
+        action="skill-create",
+        before=before,
+        after=after,
+        evidence=[{"type": "run", "ref": "tool-agent"}],
+        confidence=0.8,
+        agent="tool-agent",
+        reason="tool-agent proposed skill creation",
+        risk_tier="review",
+        apply_payload={"kind": "file-replace", "path": str(rel_path), "content": after},
     )
-    return ToolResult(f"created {path.relative_to(workspace.root)}")
+    return ToolResult(f"queued learning proposal {proposal.id} for skill {path.relative_to(workspace.root)}")
 
 
 def memory_write_tool(workspace: Workspace, args: dict[str, Any]) -> ToolResult:

@@ -23,7 +23,8 @@ Open `http://127.0.0.1:8765`.
 - Memory, ledger, and Telegram tabs for onboarding and durable status.
 - Approval, Morpheus, daemon, and schedule status.
 - Verified-learning proposals and recent learning events.
-- Reliability health, budget, trace timeline, delivery records, and reliability log.
+- Reliability health, budget, trace timeline, delivery records, replay records, and
+  reliability log.
 - Setup and skill config tabs for readiness verification.
 - Chat tab for message-oriented agent runs.
 - Warnings in a separate panel.

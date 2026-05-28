@@ -25,6 +25,9 @@ No blocking findings remain.
   an existing memory note unless an expected version is supplied or append mode is used.
 - Dashboard and gateway learning APIs expose show and rollback actions in addition to
   list, approve, and reject.
+- Tool-agent skill creation now queues a learning proposal instead of writing `SKILL.md`
+  directly.
+- Reliability data now exposes replay records derived from delivery events.
 
 ## Residual Risk
 
@@ -40,7 +43,7 @@ No blocking findings remain.
 
 - `py -m pip install -e .`
 - `py -m compileall -q src tests tools`
-- `py -m unittest discover -s tests` (28 tests)
+- `py -m unittest discover -s tests` (29 tests)
 - `git diff --check -- . ':!skills/upstream'`
 - `birkin-codex doctor`
 - `birkin-codex skills validate`

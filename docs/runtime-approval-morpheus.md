@@ -30,7 +30,9 @@ The runtime calls OpenAI-compatible chat completions with function tools. The mo
 - `schedule_daily`
 - `telegram_send`
 
-Safe memory and skill actions can apply directly. Consequential actions are queued.
+New memory notes can be written directly with evidence. Existing memory note replacement
+and all tool-agent skill creation/update requests become verified-learning proposals
+instead of silently overwriting workspace knowledge. Consequential actions are queued.
 
 ## Approval Gate
 

@@ -41,7 +41,7 @@ from birkin_agent.memory import (
 from birkin_agent.models import render_model_command, resolve_model_profile, use_model_profile, validate_models
 from birkin_agent.morpheus import run_morpheus
 from birkin_agent.reliability import budget_status, health_checks, reliability_rows, trace_rows
-from birkin_agent.runtime import memory_write_tool
+from birkin_agent.runtime import create_skill_tool, memory_write_tool
 from birkin_agent.setup import setup_report
 from birkin_agent.skills import create_skill, discover_skills, immutable_skill, skill_config_rows, skill_safety_rows, validate_skills
 from birkin_agent.telegram import configure_telegram, telegram_status, validate_telegram
@@ -526,6 +526,18 @@ class WorkspaceTest(unittest.TestCase):
         self.assertEqual(memory_get_note(workspace, "Manual Memory")["body"], "This note was written manually.")
         self.assertEqual(len(learning_proposal_rows(workspace)), 1)
 
+    def test_tool_skill_creation_becomes_learning_proposal(self) -> None:
+        workspace = self.make_workspace()
+        result = create_skill_tool(
+            workspace,
+            {"name": "runtime skill", "description": "Created through a tool proposal.", "group": "custom"},
+        )
+        self.assertIn("queued learning proposal", result.content)
+        self.assertFalse((workspace.root / "skills" / "custom" / "runtime-skill" / "SKILL.md").exists())
+        rows = learning_proposal_rows(workspace)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["targetType"], "skill")
+
     def test_approvals_queue_and_resolve_file_write(self) -> None:
         workspace = self.make_workspace()
         proposed = propose_action(
@@ -623,6 +635,7 @@ class WorkspaceTest(unittest.TestCase):
         self.assertIn("learningEvents", data)
         self.assertIn("reliability", data)
         self.assertIn("traces", data)
+        self.assertIn("replays", data)
         self.assertIn("health", data)
         self.assertIn("budget", data)
         self.assertIn("skillSafety", data)
@@ -698,6 +711,7 @@ class WorkspaceTest(unittest.TestCase):
         self.assertIn("learningProposals", status)
         self.assertIn("reliability", status)
         self.assertIn("traces", status)
+        self.assertIn("replays", status)
         self.assertIn("health", status)
         self.assertIn("budget", status)
         self.assertIn("morpheus", status)
@@ -800,6 +814,7 @@ class WorkspaceTest(unittest.TestCase):
             reliability = json.loads(response.read().decode("utf-8"))
         self.assertIn("health", reliability)
         self.assertIn("budget", reliability)
+        self.assertIn("replays", reliability)
 
         with urlopen(f"http://{host}:{port}/api/memory", timeout=5) as response:
             memory = json.loads(response.read().decode("utf-8"))

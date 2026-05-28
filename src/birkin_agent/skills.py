@@ -509,8 +509,32 @@ def create_skill(workspace: Workspace, name: str, description: str, group: str =
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():
         raise FileExistsError(path)
+    content = render_skill_content(name, description)
+    path.write_text(content, encoding="utf-8")
+    try:
+        from .learning import write_learning_event
+
+        write_learning_event(
+            workspace,
+            action="skill-create",
+            target_type="skill",
+            target=slug,
+            evidence=[{"type": "manual", "ref": "birkin-codex skills create"}],
+            confidence=0.9,
+            author="user",
+            reason="explicit skill creation",
+            metadata={"path": str(path.relative_to(workspace.root)), "hash": skill_hash(path)},
+            rollback={"kind": "file-restore", "path": str(path.relative_to(workspace.root)), "before": ""},
+        )
+    except Exception:
+        pass
+    return path
+
+
+def render_skill_content(name: str, description: str) -> str:
+    slug = slugify(name)
     description_value = json.dumps(description)
-    content = f"""---
+    return f"""---
 name: {slug}
 description: {description_value}
 version: 0.1.0
@@ -536,25 +560,6 @@ Use this skill when the task clearly matches: {description}
 - The output is present in the workspace.
 - Claims are backed by files, run records, or cited sources.
 """
-    path.write_text(content, encoding="utf-8")
-    try:
-        from .learning import write_learning_event
-
-        write_learning_event(
-            workspace,
-            action="skill-create",
-            target_type="skill",
-            target=slug,
-            evidence=[{"type": "manual", "ref": "birkin-codex skills create"}],
-            confidence=0.9,
-            author="user",
-            reason="explicit skill creation",
-            metadata={"path": str(path.relative_to(workspace.root)), "hash": skill_hash(path)},
-            rollback={"kind": "file-restore", "path": str(path.relative_to(workspace.root)), "before": ""},
-        )
-    except Exception:
-        pass
-    return path
 
 
 def skill_rows(workspace: Workspace) -> list[dict[str, str]]:

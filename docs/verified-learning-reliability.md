@@ -108,7 +108,7 @@ The dashboard and CLI expose:
 
 - Trace timeline: user, agent, tool, subagent, approval, delivery, and result stages.
 - Health checks for gateway, Morpheus, Telegram, memory, ledger, models, and API.
-- Delivery status and silent-failure warnings.
+- Delivery status, replay records, and silent-failure warnings.
 - Budget status for per-run, daily, and monthly token limits.
 - Model-routing visibility through the active default model profile.
 

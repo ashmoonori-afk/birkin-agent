@@ -15,7 +15,7 @@ from .ledger import ledger_rows, ledger_summary
 from .memory import memory_status, validate_memory
 from .models import model_rows, validate_models
 from .morpheus import morpheus_status
-from .reliability import budget_status, delivery_rows, health_checks, reliability_rows, silent_failure_warnings, trace_rows
+from .reliability import budget_status, delivery_rows, health_checks, reliability_rows, replay_rows, silent_failure_warnings, trace_rows
 from .scheduler import daemon_status, schedule_rows
 from .skills import discover_skills, skill_config_rows, skill_rows, skill_safety_summary, validate_skills
 from .telegram import telegram_status, validate_telegram
@@ -177,6 +177,7 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
     reliability = reliability_rows(workspace)
     traces = trace_rows(workspace)
     deliveries = delivery_rows(workspace)
+    replays = replay_rows(workspace)
     health = health_checks(workspace)
     budget = budget_status(workspace)
     schedules = schedule_rows(workspace)
@@ -264,6 +265,7 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
         "reliability": reliability,
         "traces": traces,
         "deliveries": deliveries,
+        "replays": replays,
         "health": health,
         "budget": budget,
         "skillSafety": skill_safety_summary(workspace),

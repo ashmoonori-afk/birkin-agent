@@ -17,7 +17,7 @@ from birkin_agent.api import api_rows, validate_api
 from birkin_agent.approvals import approval_rows, propose_action
 from birkin_agent.auth import auth_rows, run_auth_command, validate_auth
 from birkin_agent.chat import run_chat
-from birkin_agent.cli import main as cli_main
+from birkin_agent.cli import main as cli_main, startup_banner
 from birkin_agent.dashboard import dashboard_data
 from birkin_agent.experience import current_experience, set_experience_mode
 from birkin_agent.gateway import GatewayHandler
@@ -44,7 +44,15 @@ from birkin_agent.morpheus import run_morpheus
 from birkin_agent.reliability import budget_status, health_checks, reliability_rows, trace_rows
 from birkin_agent.runtime import create_skill_tool, memory_write_tool
 from birkin_agent.setup import setup_report
-from birkin_agent.skills import create_skill, discover_skills, immutable_skill, skill_config_rows, skill_safety_rows, validate_skills
+from birkin_agent.skills import (
+    create_skill,
+    discover_skills,
+    ensure_bundled_skills,
+    immutable_skill,
+    skill_config_rows,
+    skill_safety_rows,
+    validate_skills,
+)
 from birkin_agent.telegram import configure_telegram, telegram_status, validate_telegram
 from birkin_agent.web import Handler
 from birkin_agent.wizard import setup_wizard
@@ -430,9 +438,41 @@ class WorkspaceTest(unittest.TestCase):
         ):
             self.assertEqual(cli_main([]), 0)
         output = stdout.getvalue()
-        self.assertIn("Birkin Codex", output)
-        self.assertIn("Commands: /help", output)
+        self.assertIn("The AI agent that actually remembers you.", output)
+        self.assertIn("model packet", output)
+        self.assertIn("skill(s)", output)
+        self.assertIn("vault", output)
+        self.assertIn("type /help for commands, or just chat", output)
         self.assertIn("bye", output)
+
+    def test_startup_banner_uses_codex_label_for_codex_cli_profile(self) -> None:
+        workspace = self.make_workspace()
+        banner = startup_banner(workspace, "codex-local")
+        self.assertIn("The AI agent that actually remembers you.", banner)
+        self.assertIn("model codex", banner)
+        self.assertIn("15 skill(s)", banner)
+        self.assertIn(str(memory_status(workspace)["vaultPath"]), banner)
+
+    def test_interactive_chat_repairs_missing_bundled_skills_and_shows_command_picker(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        workspace = Workspace(Path(tmp.name))
+        workspace.init()
+        self.assertEqual(discover_skills(workspace), [])
+        with (
+            patch("birkin_agent.cli.ws", return_value=workspace),
+            patch("builtins.input", side_effect=["/", "/skills", "/status", "/exit"]),
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+        ):
+            self.assertEqual(cli_main([]), 0)
+        output = stdout.getvalue()
+        self.assertIn("/mode lite|full", output)
+        self.assertIn("/status", output)
+        self.assertIn("catalog", output)
+        self.assertIn("discovered skills", output)
+        self.assertNotIn("0 discovered skills", output)
+        self.assertTrue(ensure_bundled_skills(workspace) == [])
+        self.assertTrue(discover_skills(workspace))
 
     def test_interactive_live_command_selects_model(self) -> None:
         workspace = self.make_workspace()

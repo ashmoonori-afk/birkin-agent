@@ -1,3 +1,1 @@
-* text=auto eol=lf
-*.ps1 text eol=crlf
-scripts/birkin text eol=lf
+src/birkin_agent/bundled_skills/upstream/** whitespace=-blank-at-eol,-blank-at-eof,-trailing-space

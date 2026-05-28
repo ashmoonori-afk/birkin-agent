@@ -8,7 +8,7 @@ from typing import Any
 from .api import call_openai_compatible
 from .memory import recall_memory
 from .models import render_model_command, resolve_model_profile
-from .skills import SkillRecord, discover_skills, parse_frontmatter
+from .skills import SkillRecord, discover_skills, ensure_bundled_skills, parse_frontmatter
 from .util import slugify, utc_stamp, write_json
 from .workspace import Workspace
 
@@ -171,6 +171,7 @@ def build_packet(
     provider_name: str | None = None,
     runner_name: str | None = None,
 ) -> dict[str, Any]:
+    ensure_bundled_skills(workspace)
     agent = get_agent(workspace, agent_id)
     profile = resolve_model_profile(workspace, model_name or agent.model, provider_name)
     runner_key = runner_name or profile.runner or agent.runner

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import hashlib
+import importlib.resources as resources
 import json
 import os
 from pathlib import Path
@@ -187,6 +188,93 @@ def iter_skill_files(workspace: Workspace, root: Path) -> list[Path]:
                 if nested_skill.exists():
                     files.append(nested_skill)
     return files
+
+
+def skill_source_name(path: Path) -> str:
+    try:
+        frontmatter, _body, _issues = parse_frontmatter(path)
+    except OSError:
+        return path.parent.name
+    return str(frontmatter.get("name") or path.parent.name)
+
+
+def configured_skill_names(workspace: Workspace) -> set[str]:
+    names: set[str] = set()
+    skill_config = workspace.config.get("skills", {})
+    roots = skill_config.get("roots", []) if isinstance(skill_config, dict) else []
+    for source in roots:
+        if not isinstance(source, str):
+            continue
+        root = workspace.rel(source)
+        for skill_file in iter_skill_files(workspace, root):
+            names.add(skill_source_name(skill_file))
+    return names
+
+
+def copy_missing_path_tree(source: Path, target: Path, created: list[Path]) -> None:
+    if not source.exists():
+        return
+    for child in source.iterdir():
+        if child.name.startswith((".", "_")):
+            continue
+        destination = target / child.name
+        if child.is_dir():
+            copy_missing_path_tree(child, destination, created)
+        elif child.is_file() and not destination.exists():
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(child, destination)
+            created.append(destination)
+
+
+def copy_missing_resource_tree(source: resources.abc.Traversable, target: Path, created: list[Path]) -> None:
+    if not source.is_dir():
+        return
+    for child in source.iterdir():
+        if child.name.startswith((".", "_")):
+            continue
+        destination = target / child.name
+        if child.is_dir():
+            copy_missing_resource_tree(child, destination, created)
+        elif child.is_file() and not destination.exists():
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(child.read_bytes())
+            created.append(destination)
+
+
+def ensure_bundled_skills(workspace: Workspace) -> list[Path]:
+    skill_config = workspace.config.get("skills", {})
+    enabled = skill_config.get("enabled") if isinstance(skill_config, dict) else None
+    required = set(enabled or []) if isinstance(enabled, list) else set()
+    existing = configured_skill_names(workspace)
+    if existing and (not required or required.issubset(existing)):
+        return []
+
+    created: list[Path] = []
+    target = workspace.rel("skills")
+    target.mkdir(parents=True, exist_ok=True)
+
+    source_checkout = Path(__file__).resolve().parents[2] / "skills"
+    if source_checkout.exists():
+        try:
+            same_tree = source_checkout.resolve() == target.resolve()
+        except OSError:
+            same_tree = False
+        if not same_tree:
+            copy_missing_path_tree(source_checkout, target, created)
+
+    if not created:
+        try:
+            bundled = resources.files("birkin_agent").joinpath("bundled_skills")
+            copy_missing_resource_tree(bundled, target, created)
+        except (FileNotFoundError, ModuleNotFoundError, OSError):
+            pass
+
+    if created and hasattr(workspace, "_skill_discovery_cache"):
+        try:
+            delattr(workspace, "_skill_discovery_cache")
+        except Exception:
+            pass
+    return created
 
 
 def discover_skills(workspace: Workspace) -> list[SkillRecord]:

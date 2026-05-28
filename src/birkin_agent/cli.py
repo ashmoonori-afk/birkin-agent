@@ -36,19 +36,42 @@ from .memory import (
     record_feedback,
     validate_memory,
 )
-from .models import add_model_profile, model_profile_map, model_rows, use_model_profile, validate_models
+from .models import add_model_profile, default_model_id, model_profile_map, model_rows, use_model_profile, validate_models
 from .morpheus import run_morpheus
 from .presets import is_lite
 from .reliability import budget_status, health_checks, reliability_rows, trace_rows
 from .runtime_deps import validate_runtime_dependencies
 from .scheduler import daemon_status, run_daemon, schedule_rows
 from .setup import setup_report, setup_rows
-from .skills import create_skill, discover_skills, skill_config_rows, skill_rows, skill_safety_rows, validate_skills
+from .skills import create_skill, discover_skills, ensure_bundled_skills, skill_config_rows, skill_rows, skill_safety_rows, validate_skills
 from .telegram import configure_telegram, send_telegram_message, telegram_status, validate_telegram
 from .util import print_table
 from .web import serve
 from .wizard import setup_wizard
 from .workspace import Workspace
+
+
+BIRKIN_STARTUP_ART = r"""██████╗ ██╗██████╗ ██╗  ██╗██╗███╗   ██╗
+██╔══██╗██║██╔══██╗██║ ██╔╝██║████╗  ██║
+██████╔╝██║██████╔╝█████╔╝ ██║██╔██╗ ██║
+██╔══██╗██║██╔══██╗██╔═██╗ ██║██║╚██╗██║
+██████╔╝██║██║  ██║██║  ██╗██║██║ ╚████║
+╚═════╝ ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝"""
+
+
+SLASH_COMMANDS = [
+    {"command": "/", "usage": "/", "description": "Show the command picker."},
+    {"command": "/help", "usage": "/help", "description": "Show available commands."},
+    {"command": "/live", "usage": "/live", "description": "Select the best available live model and enable execution."},
+    {"command": "/setup", "usage": "/setup", "description": "Show setup readiness checks."},
+    {"command": "/dashboard", "usage": "/dashboard", "description": "Show the dashboard command and local URL."},
+    {"command": "/skills", "usage": "/skills", "description": "Show skill catalog health after auto-repairing bundled skills."},
+    {"command": "/mode", "usage": "/mode lite|full", "description": "Switch between the small default surface and full operator mode."},
+    {"command": "/model", "usage": "/model PROFILE", "description": "Switch the model profile for this chat."},
+    {"command": "/execute", "usage": "/execute on|off", "description": "Allow or block runner execution."},
+    {"command": "/status", "usage": "/status", "description": "Show the active chat model, mode, skills, and vault."},
+    {"command": "/exit", "usage": "/exit", "description": "Leave chat."},
+]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1101,6 +1124,7 @@ def cmd_daemon_run(args: argparse.Namespace) -> int:
 
 def cmd_skills_list(args: argparse.Namespace) -> int:
     workspace = ws()
+    ensure_bundled_skills(workspace)
     rows = skill_rows(workspace)
     if args.json:
         print(json.dumps(rows, indent=2, ensure_ascii=False))
@@ -1111,6 +1135,7 @@ def cmd_skills_list(args: argparse.Namespace) -> int:
 
 def cmd_skills_show(args: argparse.Namespace) -> int:
     workspace = ws()
+    ensure_bundled_skills(workspace)
     for skill in discover_skills(workspace):
         if skill.name == args.name:
             print(skill.path.read_text(encoding="utf-8"))
@@ -1121,6 +1146,7 @@ def cmd_skills_show(args: argparse.Namespace) -> int:
 
 def cmd_skills_validate(args: argparse.Namespace) -> int:
     workspace = ws()
+    ensure_bundled_skills(workspace)
     errors, warnings = validate_skills(workspace)
     for warning in warnings:
         print(f"warning: {warning}")
@@ -1133,7 +1159,9 @@ def cmd_skills_validate(args: argparse.Namespace) -> int:
 
 
 def cmd_skills_config(args: argparse.Namespace) -> int:
-    rows = skill_config_rows(ws())
+    workspace = ws()
+    ensure_bundled_skills(workspace)
+    rows = skill_config_rows(workspace)
     if args.json:
         print(json.dumps(rows, indent=2, ensure_ascii=False))
     else:
@@ -1142,7 +1170,9 @@ def cmd_skills_config(args: argparse.Namespace) -> int:
 
 
 def cmd_skills_safety(args: argparse.Namespace) -> int:
-    rows = skill_safety_rows(ws())
+    workspace = ws()
+    ensure_bundled_skills(workspace)
+    rows = skill_safety_rows(workspace)
     if args.json:
         print(json.dumps(rows, indent=2, ensure_ascii=False))
     else:
@@ -1158,6 +1188,7 @@ def cmd_skills_create(args: argparse.Namespace) -> int:
 
 def cmd_skills_sync(args: argparse.Namespace) -> int:
     workspace = ws()
+    ensure_bundled_skills(workspace)
     config = {row["check"]: row for row in skill_config_rows(workspace)}
     payload = {
         "status": "ok",
@@ -1335,21 +1366,121 @@ def cmd_chat(args: argparse.Namespace) -> int:
     return 0 if payload["status"] in {"ok", "packet-only"} else 1
 
 
+def startup_model_label(workspace: Workspace, model_name: str | None) -> str:
+    selected = (model_name or default_model_id(workspace)).strip() or "packet"
+    profile = model_profile_map(workspace).get(selected)
+    if not profile:
+        return selected
+    provider = profile.provider.lower()
+    if "codex" in provider:
+        return "codex"
+    if "claude" in provider:
+        return "claude"
+    if profile.model and profile.model != "packet-only":
+        return profile.model
+    return profile.id
+
+
+def startup_skill_count(workspace: Workspace) -> int:
+    try:
+        ensure_bundled_skills(workspace)
+        return sum(1 for record in discover_skills(workspace) if record.enabled and record.eligible)
+    except Exception:
+        enabled = current_experience(workspace).get("enabledCount")
+        return int(enabled) if isinstance(enabled, int) else 0
+
+
+def startup_banner(workspace: Workspace, model_name: str | None = None) -> str:
+    memory = memory_status(workspace)
+    vault = str(memory.get("vaultPath") or "")
+    model = startup_model_label(workspace, model_name)
+    skill_count = startup_skill_count(workspace)
+    return "\n".join(
+        [
+            BIRKIN_STARTUP_ART,
+            "The AI agent that actually remembers you.",
+            "",
+            f"model {model} · {skill_count} skill(s) · vault {vault}",
+            "type /help for commands, or just chat · Ctrl-C to quit.",
+        ]
+    )
+
+
+def slash_command_rows(prefix: str = "") -> list[dict[str, str]]:
+    needle = prefix.strip().lower()
+    if needle in {"", "/"}:
+        return list(SLASH_COMMANDS)
+    return [
+        row
+        for row in SLASH_COMMANDS
+        if row["command"].startswith(needle) or row["usage"].startswith(needle)
+    ]
+
+
+def print_slash_commands(prefix: str = "") -> None:
+    rows = slash_command_rows(prefix)
+    if not rows:
+        print(f"unknown command: {prefix}")
+        rows = list(SLASH_COMMANDS)
+    print_table(rows, ["command", "usage", "description"])
+
+
+def install_slash_completion() -> None:
+    try:
+        import readline  # type: ignore[import-not-found]
+    except Exception:
+        return
+    commands = [row["command"] for row in SLASH_COMMANDS if row["command"] != "/"]
+
+    def complete(text: str, state: int) -> str | None:
+        if not text.startswith("/"):
+            return None
+        matches = [command for command in commands if command.startswith(text)]
+        try:
+            return matches[state]
+        except IndexError:
+            return None
+
+    try:
+        readline.set_completer(complete)
+        readline.parse_and_bind("tab: complete")
+    except Exception:
+        return
+
+
+def print_chat_status(
+    workspace: Workspace,
+    agent_id: str | None,
+    model_name: str | None,
+    execute: bool,
+) -> None:
+    memory = memory_status(workspace)
+    rows = [
+        {
+            "agent": agent_id or "chat",
+            "model": startup_model_label(workspace, model_name),
+            "mode": str(current_experience(workspace)["mode"]),
+            "skills": str(startup_skill_count(workspace)),
+            "execute": "on" if execute else "off",
+            "vault": str(memory.get("vaultPath") or ""),
+        }
+    ]
+    print_table(rows, ["agent", "model", "mode", "skills", "execute", "vault"])
+
+
 def cmd_chat_interactive(args: argparse.Namespace) -> int:
     workspace = ws()
+    ensure_bundled_skills(workspace)
     agent_id = args.agent
     model_name = args.model
     provider_name = args.provider
     execute = bool(args.execute) and not bool(getattr(args, "dry_run", False))
     history: list[dict[str, str]] = []
 
-    print("Birkin Codex")
-    print("Type a task. Safe mode works immediately and saves a run + memory.")
-    print("Commands: /help, /live, /setup, /dashboard, /skills, /mode lite|full, /model ID, /execute on|off, /exit")
-    print(
-        f"agent={agent_id or 'chat'} model={model_name or 'default'} "
-        f"mode={current_experience(workspace)['mode']} execute={'on' if execute else 'off'}"
-    )
+    install_slash_completion()
+    print(startup_banner(workspace, model_name))
+    print()
+    print_chat_status(workspace, agent_id, model_name, execute)
 
     while True:
         try:
@@ -1367,18 +1498,11 @@ def cmd_chat_interactive(args: argparse.Namespace) -> int:
         if lowered in {"/exit", "/quit", "exit", "quit"}:
             print("bye")
             return 0
-        if lowered == "/help":
-            print("Commands:")
-            print("  /live           use the best available live model and turn execution on")
-            print("  /setup          show setup readiness")
-            print("  /dashboard      show the local dashboard command")
-            print("  /skills         show skill configuration checks")
-            print("  /mode lite      keep only the simple default surface")
-            print("  /mode full      enable all eligible skills and advanced controls")
-            print("  /model ID       switch model profile for this chat")
-            print("  /execute on     allow the selected runner to execute")
-            print("  /execute off    packet-only safe mode")
-            print("  /exit           leave chat")
+        if lowered in {"/", "/?", "/help", "/commands"}:
+            print_slash_commands()
+            continue
+        if lowered == "/status":
+            print_chat_status(workspace, agent_id, model_name, execute)
             continue
         if lowered == "/live":
             selected, detail = choose_live_model(workspace)
@@ -1398,14 +1522,17 @@ def cmd_chat_interactive(args: argparse.Namespace) -> int:
             print("Then open: http://127.0.0.1:8765")
             continue
         if lowered == "/skills":
+            ensure_bundled_skills(workspace)
             print_table(skill_config_rows(workspace), ["check", "status", "detail"])
             continue
         if lowered.startswith("/mode "):
             value = message.split(maxsplit=1)[1].strip().lower()
             if value not in {"lite", "full"}:
                 print("usage: /mode lite|full")
+                print_slash_commands("/mode")
                 continue
             payload = set_experience_mode(workspace, value)
+            ensure_bundled_skills(workspace)
             print(f"mode={payload['mode']} skills={payload['skills']}")
             continue
         if lowered.startswith("/model "):
@@ -1416,9 +1543,13 @@ def cmd_chat_interactive(args: argparse.Namespace) -> int:
             value = message.split(maxsplit=1)[1].strip().lower()
             if value not in {"on", "off"}:
                 print("usage: /execute on|off")
+                print_slash_commands("/execute")
                 continue
             execute = value == "on"
             print(f"execute={'on' if execute else 'off'}")
+            continue
+        if lowered.startswith("/"):
+            print_slash_commands(lowered)
             continue
 
         try:

@@ -20,7 +20,7 @@ from .presets import is_lite
 from .reliability import budget_status, delivery_rows, health_checks, reliability_rows, replay_rows, silent_failure_warnings, trace_rows
 from .runtime_deps import validate_runtime_dependencies
 from .scheduler import daemon_status, schedule_rows
-from .skills import discover_skills, skill_config_rows, skill_rows, skill_safety_summary, validate_skills
+from .skills import discover_skills, ensure_bundled_skills, skill_config_rows, skill_rows, skill_safety_summary, validate_skills
 from .telegram import telegram_status, validate_telegram
 from .workspace import Workspace
 
@@ -121,6 +121,7 @@ def list_jobs(workspace: Workspace, limit: int = 50) -> list[dict[str, Any]]:
 
 
 def dashboard_data(workspace: Workspace) -> dict[str, Any]:
+    ensure_bundled_skills(workspace)
     experience = current_experience(workspace)
     doctor_errors, doctor_warnings = workspace.doctor()
     runtime_errors, runtime_warnings = validate_runtime_dependencies(workspace)

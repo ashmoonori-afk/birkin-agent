@@ -15,7 +15,7 @@ from .morpheus import morpheus_status
 from .presets import is_lite
 from .runtime_deps import validate_runtime_dependencies
 from .scheduler import schedule_rows
-from .skills import skill_config_rows, skill_rows, validate_skills
+from .skills import ensure_bundled_skills, skill_config_rows, skill_rows, validate_skills
 from .telegram import telegram_status, validate_telegram
 from .workspace import Workspace
 
@@ -29,6 +29,7 @@ class SetupCheck:
 
 
 def setup_checks(workspace: Workspace, advanced: bool = False) -> list[SetupCheck]:
+    ensure_bundled_skills(workspace)
     rows: list[SetupCheck] = []
     lite = is_lite(workspace.config) and not advanced
     mode_detail = (

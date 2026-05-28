@@ -90,13 +90,22 @@ operator controls hidden by default.
 - Setup wizard: model selection, Obsidian vault setup, Telegram onboarding, and optional
   Telegram inbound.
 - Chat-first UX: no-argument `birkin-codex` opens the interactive chat with safe packet
-  mode explained up front. Packet-only chat now returns a first-run success message that
-  confirms a run record was created and explains live execution instead of only reporting
-  that no model runner executed. The chat payload still includes `memoryNote` when memory
-  capture succeeds.
+  mode explained up front. The startup screen shows the Birkin ASCII banner, memory
+  tagline, selected model label, enabled skill count, and Obsidian vault path. Packet-only
+  chat now returns a first-run success message that confirms a run record was created and
+  explains live execution instead of only reporting that no model runner executed. The
+  chat payload still includes `memoryNote` when memory capture succeeds.
+- Slash command UX: `/`, `/help`, and `/commands` show a command picker; `/status`
+  reports active agent, model, mode, skill count, execution state, and vault. Readline
+  shells get slash command Tab completion when available.
 - Live chat handoff: `/live` selects `api-agent` when `OPENAI_API_KEY` is present,
   `codex-local` when the local `codex` CLI is available, or another runnable configured
   profile, then turns execution on for the current chat.
+- Bundled skill bootstrap: `src/birkin_agent/bundled_skills` is packaged with pip/uv
+  installs. Skill commands, setup, dashboard data, and agent packet building repair
+  missing bundled skills before discovery without overwriting existing user files.
+  Bundled upstream copies preserve upstream `SKILL.md` bodies, with `.gitattributes`
+  limiting whitespace checks for those copied upstream files only.
 - Default agents: planner, builder, reviewer, researcher, operator, and chat.
 - Upstream skills: 90 Hermes and 57 OpenClaw exact mirrored upstream skill directories,
   with 147 mirrored upstream skills and 0 missing directories.
@@ -129,7 +138,8 @@ Kept different:
 - `birkin-codex mode status`: passed directly from the terminal and reported
   `mode=lite`, `enabledCount=15`.
 - `py -m compileall -q src tests tools`: passed.
-- `py -m unittest discover -s tests`: 32 tests passed.
+- `py -m unittest discover -s tests`: 34 tests passed after the startup/slash/skill
+  bootstrap update.
 - `git diff --check -- . ':!skills/upstream'`: passed.
 - `birkin-codex doctor`: `ok` in lite mode.
 - `birkin-codex doctor --advanced`: `ok` with expected warnings for missing
@@ -140,6 +150,8 @@ Kept different:
   warnings.
 - `birkin-codex mode status`: passed and reported `mode=lite`, `enabledCount=15`.
 - `birkin-codex skills validate`: `ok`.
+- `birkin-codex skills config`: passed with 168 discovered skills, 15 enabled, 90 Hermes
+  reflections, 57 OpenClaw reflections, and 147 mirrored upstream skills.
 - `birkin-codex skills sync --json`: passed and reported repo-managed mirrors, dry-run
   status, 147 mirrored upstream skills, and 0 missing directories.
 - `birkin-codex skills config --json`: passed; upstream mirror check reports 147
@@ -167,12 +179,18 @@ Kept different:
 - Dashboard smoke on `127.0.0.1:8786` with headless Edge: title rendered as `Birkin
   Agent`, `Try Safe Packet` and `Build Packet` rendered, advanced navigation and execute
   controls were hidden in lite mode, and both became visible after `Show Advanced`.
+- Empty workspace smoke from `%TEMP%`: `birkin-codex init` then
+  `birkin-codex skills config` repaired the skill catalog to 168 discovered skills and
+  no config errors.
+- Wheel smoke: `py -m pip wheel . --no-deps` produced a wheel containing 315 bundled
+  `SKILL.md` files.
 - Gateway smoke on `127.0.0.1:8772`: `/health`, `/api/reliability`, and `/api/learning`
   passed, including reliability replay records.
 - Code review note: `reviews/2026-05-28-verified-learning-reliability-review.md`.
 - Installer/chat UX review note: `reviews/2026-05-28-installer-chat-ux-review.md`.
 - Lite mode review note: `reviews/2026-05-28-lite-mode-review.md`.
-- Latest code review note: `reviews/2026-05-28-lite-cli-packet-review.md`.
+- Lite CLI packet review note: `reviews/2026-05-28-lite-cli-packet-review.md`.
+- Latest code review note: `reviews/2026-05-28-startup-slash-skills-review.md`.
 
 ## Git Target
 

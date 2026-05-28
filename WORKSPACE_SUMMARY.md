@@ -28,6 +28,9 @@ operator controls hidden by default.
   `scripts/install.ps1` for Windows PowerShell. Both install from
   `https://github.com/ashmoonori-afk/birkin-agent` with `uv`, `pipx`, or
   `pip --user`, and honor `BIRKIN_REPO`/`BIRKIN_REF` overrides.
+- Self-update command: `birkin-codex update` reinstalls from `BIRKIN_REPO`/`BIRKIN_REF`
+  or the default GitHub `main` ref, using `uv`, `pipx`, or `pip`. It supports
+  `--dry-run`, `--json`, `--repo`, `--ref`, and `--method auto|uv|pipx|pip`.
 - Script entrypoints: `scripts/setup`, `scripts/setup.ps1`, `scripts/birkin-codex`,
   `scripts/birkin-codex.ps1`, `scripts/birkin`, and `scripts/birkin.ps1`.
 - Model profiles: `packet`, `codex-local`, `api-openai`, `api-agent`, and
@@ -97,7 +100,8 @@ operator controls hidden by default.
   chat payload still includes `memoryNote` when memory capture succeeds.
 - Slash command UX: `/`, `/help`, and `/commands` show a command picker; `/status`
   reports active agent, model, mode, skill count, execution state, and vault. Readline
-  shells get slash command Tab completion when available.
+  shells get slash command Tab completion when available. `/update --dry-run` previews
+  the self-update command, and `/update` runs it.
 - Live chat handoff: `/live` selects `api-agent` when `OPENAI_API_KEY` is present,
   `codex-local` when the local `codex` CLI is available, or another runnable configured
   profile, then turns execution on for the current chat.
@@ -138,8 +142,7 @@ Kept different:
 - `birkin-codex mode status`: passed directly from the terminal and reported
   `mode=lite`, `enabledCount=15`.
 - `py -m compileall -q src tests tools`: passed.
-- `py -m unittest discover -s tests`: 34 tests passed after the startup/slash/skill
-  bootstrap update.
+- `py -m unittest discover -s tests`: 36 tests passed after adding the update command.
 - `git diff --check -- . ':!skills/upstream'`: passed.
 - `birkin-codex doctor`: `ok` in lite mode.
 - `birkin-codex doctor --advanced`: `ok` with expected warnings for missing
@@ -149,6 +152,8 @@ Kept different:
 - `birkin-codex setup --advanced --json`: passed with expected optional integration
   warnings.
 - `birkin-codex mode status`: passed and reported `mode=lite`, `enabledCount=15`.
+- `birkin-codex update --dry-run --method pip --json`: passed and reported
+  `python -m pip install --upgrade --user git+https://github.com/ashmoonori-afk/birkin-agent@main`.
 - `birkin-codex skills validate`: `ok`.
 - `birkin-codex skills config`: passed with 168 discovered skills, 15 enabled, 90 Hermes
   reflections, 57 OpenClaw reflections, and 147 mirrored upstream skills.
@@ -190,7 +195,8 @@ Kept different:
 - Installer/chat UX review note: `reviews/2026-05-28-installer-chat-ux-review.md`.
 - Lite mode review note: `reviews/2026-05-28-lite-mode-review.md`.
 - Lite CLI packet review note: `reviews/2026-05-28-lite-cli-packet-review.md`.
-- Latest code review note: `reviews/2026-05-28-startup-slash-skills-review.md`.
+- Startup/slash/skills review note: `reviews/2026-05-28-startup-slash-skills-review.md`.
+- Latest code review note: `reviews/2026-05-28-update-command-review.md`.
 
 ## Git Target
 

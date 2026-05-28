@@ -93,6 +93,8 @@ Type `/` to open the command picker. When readline support is available, slash c
 also complete with Tab. `/skills` repairs missing bundled skill files before showing
 catalog health, so a pip-installed workspace does not get stuck with an empty skill
 catalog.
+Use `/update --dry-run` to inspect the self-update command from chat, or `/update` to
+run it.
 
 Interactive commands:
 
@@ -107,7 +109,22 @@ Interactive commands:
 - `/execute on` allows the selected runner to execute.
 - `/execute off` returns to packet-only safe mode.
 - `/status` shows the active chat model, mode, skill count, execution state, and vault.
+- `/update --dry-run` previews the self-update command; `/update` runs it.
 - `/exit` leaves chat.
+
+## Update
+
+Update the installed CLI from the configured repository and ref:
+
+```sh
+birkin-codex update --dry-run
+birkin-codex update
+birkin-codex update --method pip --repo https://github.com/ashmoonori-afk/birkin-agent --ref main
+```
+
+`update` uses `uv tool install --force`, `pipx install --force`, or
+`python -m pip install --upgrade` in that order when `--method auto` is selected.
+`BIRKIN_REPO` and `BIRKIN_REF` can override the default source.
 
 Packet-only chat:
 

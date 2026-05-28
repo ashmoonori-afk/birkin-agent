@@ -45,6 +45,7 @@ from .scheduler import daemon_status, run_daemon, schedule_rows
 from .setup import setup_report, setup_rows
 from .skills import create_skill, discover_skills, ensure_bundled_skills, skill_config_rows, skill_rows, skill_safety_rows, validate_skills
 from .telegram import configure_telegram, send_telegram_message, telegram_status, validate_telegram
+from .updater import update_self
 from .util import print_table
 from .web import serve
 from .wizard import setup_wizard
@@ -70,6 +71,7 @@ SLASH_COMMANDS = [
     {"command": "/model", "usage": "/model PROFILE", "description": "Switch the model profile for this chat."},
     {"command": "/execute", "usage": "/execute on|off", "description": "Allow or block runner execution."},
     {"command": "/status", "usage": "/status", "description": "Show the active chat model, mode, skills, and vault."},
+    {"command": "/update", "usage": "/update [--dry-run]", "description": "Update the birkin-codex CLI from the configured repo/ref."},
     {"command": "/exit", "usage": "/exit", "description": "Leave chat."},
 ]
 
@@ -104,6 +106,14 @@ def build_parser() -> argparse.ArgumentParser:
     doctor = sub.add_parser("doctor", help="Check workspace health")
     doctor.add_argument("--advanced", action="store_true", help="Include optional auth, API, gateway, and Telegram checks.")
     doctor.set_defaults(func=cmd_doctor)
+
+    update = sub.add_parser("update", help="Update birkin-codex from GitHub")
+    update.add_argument("--repo", help="Repository URL. Defaults to BIRKIN_REPO or the public birkin-agent repo.")
+    update.add_argument("--ref", help="Git ref. Defaults to BIRKIN_REF or main.")
+    update.add_argument("--method", choices=["auto", "uv", "pipx", "pip"], default="auto")
+    update.add_argument("--dry-run", action="store_true")
+    update.add_argument("--json", action="store_true")
+    update.set_defaults(func=cmd_update)
 
     add_setup_parser(sub.add_parser("setup", help="Check Hermes-style setup readiness"))
     add_mode_parser(sub.add_parser("mode", help="Switch between lite and full experience modes"))
@@ -571,6 +581,37 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         return 1
     print("ok")
     return 0
+
+
+def print_update_payload(payload: dict[str, Any]) -> None:
+    row = {
+        "status": str(payload.get("status") or ""),
+        "method": str(payload.get("method") or ""),
+        "spec": str(payload.get("spec") or ""),
+        "command": " ".join(str(part) for part in payload.get("command") or []),
+    }
+    print_table([row], ["status", "method", "spec", "command"])
+    stdout = str(payload.get("stdout") or "").strip()
+    stderr = str(payload.get("stderr") or "").strip()
+    if stdout:
+        print(stdout)
+    if stderr:
+        print(stderr, file=sys.stderr)
+
+
+def cmd_update(args: argparse.Namespace) -> int:
+    payload = update_self(
+        repo=args.repo,
+        ref=args.ref,
+        method=args.method,
+        dry_run=args.dry_run,
+        cwd=Path.cwd(),
+    )
+    if args.json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    else:
+        print_update_payload(payload)
+    return 0 if payload["status"] in {"ok", "dry-run"} else 1
 
 
 def cmd_setup_check(args: argparse.Namespace) -> int:
@@ -1503,6 +1544,11 @@ def cmd_chat_interactive(args: argparse.Namespace) -> int:
             continue
         if lowered == "/status":
             print_chat_status(workspace, agent_id, model_name, execute)
+            continue
+        if lowered.startswith("/update"):
+            dry_run = "--dry-run" in lowered.split()
+            payload = update_self(method="auto", dry_run=dry_run, cwd=workspace.root)
+            print_update_payload(payload)
             continue
         if lowered == "/live":
             selected, detail = choose_live_model(workspace)

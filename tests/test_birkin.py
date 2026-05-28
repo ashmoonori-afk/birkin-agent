@@ -474,6 +474,46 @@ class WorkspaceTest(unittest.TestCase):
         self.assertTrue(ensure_bundled_skills(workspace) == [])
         self.assertTrue(discover_skills(workspace))
 
+    def test_update_dry_run_cli_reports_install_command(self) -> None:
+        with patch("sys.stdout", new_callable=io.StringIO) as stdout:
+            self.assertEqual(
+                cli_main(
+                    [
+                        "update",
+                        "--dry-run",
+                        "--json",
+                        "--method",
+                        "pip",
+                        "--repo",
+                        "https://example.com/birkin-agent",
+                        "--ref",
+                        "dev",
+                    ]
+                ),
+                0,
+            )
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["status"], "dry-run")
+        self.assertEqual(payload["method"], "pip")
+        self.assertEqual(payload["spec"], "git+https://example.com/birkin-agent@dev")
+        self.assertIn("pip", payload["command"])
+        self.assertIn("install", payload["command"])
+        self.assertIn("--upgrade", payload["command"])
+
+    def test_interactive_update_dry_run_command(self) -> None:
+        workspace = self.make_workspace()
+        with (
+            patch("birkin_agent.cli.ws", return_value=workspace),
+            patch("birkin_agent.updater.shutil.which", return_value=None),
+            patch("builtins.input", side_effect=["/update --dry-run", "/exit"]),
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+        ):
+            self.assertEqual(cli_main([]), 0)
+        output = stdout.getvalue()
+        self.assertIn("dry-run", output)
+        self.assertIn("git+https://github.com/ashmoonori-afk/birkin-agent@main", output)
+        self.assertIn("bye", output)
+
     def test_interactive_live_command_selects_model(self) -> None:
         workspace = self.make_workspace()
         with (

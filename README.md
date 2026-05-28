@@ -109,6 +109,7 @@ Everyday loop:
 ```sh
 birkin-codex
 birkin-codex setup wizard
+birkin-codex update --dry-run
 birkin-codex chat --message "Summarize this workspace" --model packet
 birkin-codex chat --dry-run --message "Summarize this workspace"
 birkin-codex agents packet chat --task "Summarize this workspace" --format summary
@@ -129,6 +130,7 @@ Operations and governance:
 ```sh
 birkin-codex doctor
 birkin-codex doctor --advanced
+birkin-codex update
 birkin-codex auth list
 birkin-codex api list
 birkin-codex gateway status

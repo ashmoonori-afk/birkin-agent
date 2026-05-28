@@ -6,12 +6,15 @@ from typing import Any
 
 from .agents import agent_rows, validate_agents
 from .api import api_rows, validate_api
+from .approvals import approval_rows
 from .auth import auth_rows, validate_auth
 from .gateway import gateway_info, validate_gateway
 from .improve import collect_signals
 from .ledger import ledger_rows, ledger_summary
 from .memory import memory_status, validate_memory
 from .models import model_rows, validate_models
+from .morpheus import morpheus_status
+from .scheduler import daemon_status, schedule_rows
 from .skills import discover_skills, skill_config_rows, skill_rows, validate_skills
 from .telegram import telegram_status, validate_telegram
 from .workspace import Workspace
@@ -165,6 +168,16 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
     auth = auth_rows(workspace)
     api = api_rows(workspace)
     signals = collect_signals(workspace)
+    approvals = approval_rows(workspace)
+    schedules = schedule_rows(workspace)
+    if approvals:
+        warnings.append(
+            {
+                "severity": "warning",
+                "source": "approvals",
+                "message": f"{len(approvals)} consequential action(s) pending approval",
+            }
+        )
     setup = setup_dashboard_report(
         workspace,
         doctor_errors,
@@ -204,6 +217,8 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
             "apiProfiles": len(api),
             "warningCount": len(warnings),
             "signals": len(signals),
+            "pendingApprovals": len(approvals),
+            "schedules": len(schedules),
         },
         "usage": usage,
         "jobs": jobs,
@@ -221,6 +236,10 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
         "ledgerRows": ledger_rows(workspace),
         "setup": setup,
         "signals": signals,
+        "approvals": approvals,
+        "morpheus": morpheus_status(workspace),
+        "daemon": daemon_status(workspace),
+        "schedules": schedules,
         "summary": workspace_summary(jobs, warnings, usage),
     }
 
@@ -277,6 +296,9 @@ def setup_dashboard_report(
     skill_config: list[dict[str, str]],
 ) -> dict[str, Any]:
     agent_ids = {str(raw.get("id") or "") for raw in workspace.config.get("agents", {}).get("list", [])}
+    approvals = approval_rows(workspace)
+    morpheus = morpheus_status(workspace)
+    schedules = schedule_rows(workspace)
     rows = [
         setup_row("workspace", doctor_errors, doctor_warnings, "Workspace files, prompt files, and configured roots are present.", "birkin-codex doctor"),
         setup_row("models", model_errors, model_warnings, f"{len(models)} model profiles configured.", "birkin-codex model list"),
@@ -285,6 +307,9 @@ def setup_dashboard_report(
         setup_row("gateway", gateway_errors, gateway_warnings, "Gateway config is available.", "birkin-codex gateway status"),
         setup_row("memory", memory_errors, memory_warnings, "Obsidian-backed memory capture is configured.", "birkin-codex memory status"),
         setup_row("telegram", telegram_errors, telegram_warnings, "Telegram onboarding can send notifications.", "birkin-codex telegram status"),
+        setup_row("approvals", [], [f"{len(approvals)} pending approval(s)"] if approvals else [], "Consequential actions are approval-gated.", "birkin-codex approvals list"),
+        setup_row("morpheus", [], [] if morpheus["enabled"] else ["Morpheus daemon is not enabled"], f"Morpheus configured for {morpheus['hour']:02d}:{morpheus['minute']:02d}.", "birkin-codex morpheus --dry-run"),
+        setup_row("schedules", [], [], f"{len(schedules)} approved schedule(s) stored.", "birkin-codex daemon status"),
         setup_row("skills", skill_errors, skill_warnings, f"{sum(1 for row in skills if row['enabled'] == 'yes')}/{len(skills)} skills are enabled and eligible.", "birkin-codex skills validate"),
         setup_row("agents", agent_errors, agent_warnings, "Agent roles and skill allowlists are configured.", "birkin-codex agents list"),
         setup_row("chat", [] if "chat" in agent_ids else ["chat agent is not configured"], [], "Chat agent and dashboard chat API are available.", "birkin-codex web --port 8765"),

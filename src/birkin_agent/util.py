@@ -12,7 +12,7 @@ def utc_stamp() -> str:
 
 
 def slugify(value: str) -> str:
-    slug = re.sub(r"[^a-zA-Z0-9._-]+", "-", value.strip().lower()).strip("-")
+    slug = re.sub(r"[^\w._-]+", "-", value.strip().lower(), flags=re.UNICODE).strip("-")
     return slug or "item"
 
 

@@ -4,9 +4,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from urllib.parse import urlparse
 
+from .approvals import approval_rows, approve, reject
 from .agents import run_agent
 from .chat import run_chat
 from .dashboard import dashboard_data
+from .morpheus import run_morpheus
 from .workspace import Workspace
 
 
@@ -241,6 +243,8 @@ INDEX_HTML = """<!doctype html>
       <button data-tab="memory">Memory</button>
       <button data-tab="ledger">Ledger</button>
       <button data-tab="telegram">Telegram</button>
+      <button data-tab="approvals">Approvals</button>
+      <button data-tab="morpheus">Morpheus</button>
       <button data-tab="skills">Skills</button>
       <button data-tab="agents">Agents</button>
       <button data-tab="warnings">Warnings</button>
@@ -318,6 +322,8 @@ INDEX_HTML = """<!doctype html>
       <section id="memory"><div class="panel"><h2>Memory</h2><table id="memory-table"></table></div></section>
       <section id="ledger"><div class="panel"><h2>Ledger Summary</h2><pre id="ledger-json"></pre></div><div class="panel"><h2>Ledger Rows</h2><table id="ledger-table"></table></div></section>
       <section id="telegram"><div class="panel"><h2>Telegram</h2><table id="telegram-table"></table></div></section>
+      <section id="approvals"><div class="panel"><h2>Pending Approvals</h2><table id="approvals-table"></table></div></section>
+      <section id="morpheus"><div class="panel"><div class="panel-head"><h2>Morpheus</h2><button class="button" id="morpheus-dry-run">Dry Run</button></div><pre id="morpheus-json"></pre><pre id="morpheus-result"></pre></div><div class="panel"><h2>Schedules</h2><table id="schedules-table"></table></div><div class="panel"><h2>Daemon</h2><pre id="daemon-json"></pre></div></section>
       <section id="skills"><div class="panel"><h2>Skills</h2><table id="skills-table"></table></div></section>
       <section id="agents"><div class="panel"><h2>Agents</h2><table id="agents-table"></table></div></section>
       <section id="warnings"><div class="panel"><h2>Warnings</h2><table id="warnings-full-table"></table></div></section>
@@ -404,6 +410,28 @@ INDEX_HTML = """<!doctype html>
         {key: "source", label: "Source"},
         {key: "message", label: "Warning"}
       ], { severity: severityChip });
+    }
+    function renderApprovals(el, rows) {
+      if (!rows.length) { el.innerHTML = `<tr><td class="empty" colspan="7">No pending approvals.</td></tr>`; return; }
+      const head = "<tr><th>Category</th><th>Title</th><th>Origin</th><th>Status</th><th>Created</th><th>Description</th><th>Action</th></tr>";
+      const body = rows.map(row => `<tr>
+        <td>${esc(row.category)}</td>
+        <td>${esc(row.title)}</td>
+        <td>${esc(row.origin)}</td>
+        <td>${statusChip(row.status)}</td>
+        <td>${esc(row.created)}</td>
+        <td>${esc(row.description)}</td>
+        <td><button class="button" onclick="resolveApproval('${esc(row.id)}','approve')">Approve</button> <button class="button" onclick="resolveApproval('${esc(row.id)}','reject')">Reject</button></td>
+      </tr>`).join("");
+      el.innerHTML = head + body;
+    }
+    async function resolveApproval(id, action) {
+      await fetch("/api/approvals", {
+        method: "POST",
+        headers: {"content-type": "application/json"},
+        body: JSON.stringify({id, action})
+      });
+      await load();
     }
     async function load() {
       const res = await fetch("/api/status");
@@ -492,7 +520,19 @@ INDEX_HTML = """<!doctype html>
         {key: "botTokenEnv", label: "Token Env"},
         {key: "tokenPresent", label: "Token Present"},
         {key: "chatId", label: "Chat ID"},
-        {key: "parseMode", label: "Parse Mode"}
+        {key: "parseMode", label: "Parse Mode"},
+        {key: "inboundEnabled", label: "Inbound"}
+      ]);
+      renderApprovals(document.querySelector("#approvals-table"), d.approvals || []);
+      document.querySelector("#morpheus-json").textContent = JSON.stringify(d.morpheus || {}, null, 2);
+      document.querySelector("#daemon-json").textContent = JSON.stringify(d.daemon || {}, null, 2);
+      table(document.querySelector("#schedules-table"), d.schedules || [], [
+        {key: "id", label: "ID"},
+        {key: "name", label: "Name"},
+        {key: "hour", label: "Hour"},
+        {key: "minute", label: "Minute"},
+        {key: "action", label: "Action"},
+        {key: "created", label: "Created"}
       ]);
       table(document.querySelector("#skills-table"), d.skills, [
         {key: "name", label: "Name"},
@@ -591,6 +631,15 @@ INDEX_HTML = """<!doctype html>
       renderChat();
       await load();
     });
+    document.querySelector("#morpheus-dry-run").addEventListener("click", async () => {
+      const res = await fetch("/api/morpheus", {
+        method: "POST",
+        headers: {"content-type": "application/json"},
+        body: JSON.stringify({dryRun: true})
+      });
+      document.querySelector("#morpheus-result").textContent = JSON.stringify(await res.json(), null, 2);
+      await load();
+    });
     load();
   </script>
 </body>
@@ -611,6 +660,13 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("content-length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def require_local_request(self) -> bool:
+        host = self.client_address[0] if self.client_address else ""
+        if host in {"127.0.0.1", "::1", "localhost"}:
+            return True
+        self.send_json({"error": "local request required"}, 403)
+        return False
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
@@ -688,6 +744,31 @@ class Handler(BaseHTTPRequestHandler):
                 return
             chat["dashboard"] = dashboard_data(self.workspace)
             self.send_json(chat)
+            return
+        if parsed.path == "/api/approvals":
+            if not self.require_local_request():
+                return
+            action = str(payload.get("action") or "").strip().lower()
+            approval_id = str(payload.get("id") or "").strip()
+            if action not in {"approve", "reject"} or not approval_id:
+                self.send_json({"error": "action approve/reject and id are required"}, 400)
+                return
+            try:
+                result = approve(self.workspace, approval_id) if action == "approve" else reject(self.workspace, approval_id)
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, 400)
+                return
+            self.send_json({"approval": result, "approvals": approval_rows(self.workspace)})
+            return
+        if parsed.path in ["/api/morpheus", "/api/nightly"]:
+            if not self.require_local_request():
+                return
+            try:
+                result = run_morpheus(self.workspace, dry_run=bool(payload.get("dryRun", True)))
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, 400)
+                return
+            self.send_json({"morpheus": result, "dashboard": dashboard_data(self.workspace)})
             return
         self.send_json({"error": "not found"}, 404)
 

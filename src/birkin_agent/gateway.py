@@ -3,18 +3,22 @@ from __future__ import annotations
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+import threading
 from typing import Any
 from urllib.parse import urlparse
 
 from .api import api_rows, validate_api
+from .approvals import approval_rows, approve, reject
 from .agents import run_agent
 from .auth import auth_rows, run_auth_command, validate_auth
 from .chat import run_chat
 from .ledger import ledger_rows, ledger_summary
 from .memory import memory_status
 from .models import model_rows
+from .morpheus import run_morpheus
+from .scheduler import daemon_status, schedule_rows
 from .skills import skill_config_rows
-from .telegram import telegram_status
+from .telegram import run_telegram_inbound, telegram_status
 from .workspace import Workspace
 
 
@@ -31,8 +35,13 @@ ROUTES = [
     "GET /api/memory",
     "GET /api/ledger",
     "GET /api/telegram",
+    "GET /api/approvals",
+    "GET /api/schedules",
+    "GET /api/daemon",
     "POST /api/run",
     "POST /api/chat",
+    "POST /api/approvals",
+    "POST /api/morpheus",
     "POST /api/auth/{profile}/status",
     "POST /api/auth/{profile}/login",
     "POST /api/auth/{profile}/logout",
@@ -181,6 +190,15 @@ class GatewayHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/telegram":
             self.send_json({"telegram": telegram_status(self.workspace)})
             return
+        if parsed.path == "/api/approvals":
+            self.send_json({"approvals": approval_rows(self.workspace)})
+            return
+        if parsed.path == "/api/schedules":
+            self.send_json({"schedules": schedule_rows(self.workspace)})
+            return
+        if parsed.path == "/api/daemon":
+            self.send_json({"daemon": daemon_status(self.workspace)})
+            return
         self.send_json({"error": "not found"}, 404)
 
     def do_POST(self) -> None:
@@ -196,6 +214,27 @@ class GatewayHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/chat":
             self.handle_chat(payload)
+            return
+        if parsed.path == "/api/approvals":
+            action = str(payload.get("action") or "").strip().lower()
+            approval_id = str(payload.get("id") or "").strip()
+            if action not in {"approve", "reject"} or not approval_id:
+                self.send_json({"error": "action approve/reject and id are required"}, 400)
+                return
+            try:
+                result = approve(self.workspace, approval_id) if action == "approve" else reject(self.workspace, approval_id)
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, 400)
+                return
+            self.send_json({"approval": result, "approvals": approval_rows(self.workspace)})
+            return
+        if parsed.path in {"/api/morpheus", "/api/nightly"}:
+            try:
+                result = run_morpheus(self.workspace, dry_run=bool(payload.get("dryRun", True)))
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, 400)
+                return
+            self.send_json({"morpheus": result})
             return
         parts = [part for part in parsed.path.split("/") if part]
         if len(parts) == 4 and parts[0] == "api" and parts[1] == "auth":
@@ -293,6 +332,10 @@ def serve_gateway(workspace: Workspace, host: str | None = None, port: int | Non
     BoundGatewayHandler.workspace = workspace
     BoundGatewayHandler.host_label = bind_host
     BoundGatewayHandler.port_label = bind_port
+    status = telegram_status(workspace)
+    if status.get("inboundEnabled") and status.get("tokenPresent"):
+        thread = threading.Thread(target=run_telegram_inbound, args=(workspace,), daemon=True)
+        thread.start()
     server = ThreadingHTTPServer((bind_host, bind_port), BoundGatewayHandler)
     print(f"Birkin Gateway: http://{bind_host}:{bind_port}")
     server.serve_forever()

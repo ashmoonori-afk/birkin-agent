@@ -300,6 +300,25 @@ def run_agent(
         record = save_run_record(workspace, agent_id, task, runner_key, status, packet, result)
         return record, result
 
+    if runner_type == "tool-agent":
+        from .runtime import run_tool_agent
+
+        api_profile = profile.api_profile or str(runner.get("profile") or "")
+        if not api_profile:
+            raise ValueError(f"runner {runner_key} requires an API profile for tool-agent execution")
+        timeout = int(profile.timeout_seconds or runner.get("timeoutSeconds") or 1800)
+        result = run_tool_agent(
+            workspace,
+            packet=packet,
+            api_profile=api_profile,
+            model=profile.model,
+            timeout_seconds=timeout,
+            max_turns=int(runner.get("maxTurns") or 8),
+        )
+        status = "ok" if result.get("returncode") == 0 else "failed"
+        record = save_run_record(workspace, agent_id, task, runner_key, status, packet, result)
+        return record, result
+
     command = profile.command or runner.get("command")
     if not isinstance(command, list) or not command:
         raise ValueError(

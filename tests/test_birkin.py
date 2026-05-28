@@ -14,6 +14,7 @@ from urllib.request import Request, urlopen
 
 from birkin_agent.agents import build_packet, run_agent, validate_agents
 from birkin_agent.api import api_rows, validate_api
+from birkin_agent.approvals import approval_rows, propose_action
 from birkin_agent.auth import auth_rows, run_auth_command, validate_auth
 from birkin_agent.chat import run_chat
 from birkin_agent.cli import main as cli_main
@@ -21,11 +22,20 @@ from birkin_agent.dashboard import dashboard_data
 from birkin_agent.gateway import GatewayHandler
 from birkin_agent.improve import append_lesson, apply_improvement, propose_improvement
 from birkin_agent.ledger import ledger_rows, ledger_summary
-from birkin_agent.memory import memory_status, recall_memory, record_feedback
+from birkin_agent.memory import (
+    memory_get_note,
+    memory_link,
+    memory_search,
+    memory_status,
+    memory_write_note,
+    recall_memory,
+    record_feedback,
+)
 from birkin_agent.models import render_model_command, resolve_model_profile, use_model_profile, validate_models
+from birkin_agent.morpheus import run_morpheus
 from birkin_agent.setup import setup_report
 from birkin_agent.skills import create_skill, discover_skills, skill_config_rows, validate_skills
-from birkin_agent.telegram import configure_telegram, telegram_status
+from birkin_agent.telegram import configure_telegram, telegram_status, validate_telegram
 from birkin_agent.web import Handler
 from birkin_agent.wizard import setup_wizard
 from birkin_agent.workspace import Workspace
@@ -203,6 +213,101 @@ class WorkspaceTest(unittest.TestCase):
         self.assertEqual(payload["status"], "ok")
         self.assertEqual(payload["result"]["apiProfile"], "unit-api")
 
+    def test_tool_agent_runtime_executes_memory_tool(self) -> None:
+        workspace = self.make_workspace()
+
+        class ToolApiHandler(BaseHTTPRequestHandler):
+            def log_message(self, format: str, *args: object) -> None:
+                return
+
+            def do_POST(self) -> None:
+                length = int(self.headers.get("content-length", "0"))
+                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                has_tool_result = any(message.get("role") == "tool" for message in payload["messages"])
+                if has_tool_result:
+                    body = {
+                        "choices": [{"message": {"role": "assistant", "content": "memory saved"}}],
+                        "usage": {"total_tokens": 8},
+                    }
+                else:
+                    body = {
+                        "choices": [
+                            {
+                                "message": {
+                                    "role": "assistant",
+                                    "content": None,
+                                    "tool_calls": [
+                                        {
+                                            "id": "call_1",
+                                            "type": "function",
+                                            "function": {
+                                                "name": "memory_write_note",
+                                                "arguments": json.dumps(
+                                                    {
+                                                        "title": "Runtime Memory",
+                                                        "body": "The tool agent can write semantic memory.",
+                                                        "kind": "feedback",
+                                                        "type": "fact",
+                                                        "tags": ["runtime"],
+                                                        "sources": ["unit-test"],
+                                                        "links": ["Tool Agent"],
+                                                    }
+                                                ),
+                                            },
+                                        }
+                                    ],
+                                }
+                            }
+                        ],
+                        "usage": {"prompt_tokens": 5},
+                    }
+                encoded = json.dumps(body).encode("utf-8")
+                self.send_response(200)
+                self.send_header("content-type", "application/json")
+                self.send_header("content-length", str(len(encoded)))
+                self.end_headers()
+                self.wfile.write(encoded)
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), ToolApiHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        host, port = server.server_address
+
+        workspace.config["api"]["profiles"]["unit-tool-api"] = {
+            "type": "openai-compatible",
+            "baseUrl": f"http://{host}:{port}/v1",
+            "apiKeyEnv": "",
+            "chatPath": "/chat/completions",
+            "timeoutSeconds": 30,
+            "description": "Unit-test tool API profile.",
+        }
+        workspace.config["models"]["profiles"]["unit-tool-agent"] = {
+            "provider": "unit-api",
+            "model": "unit-model",
+            "runner": "tool-agent",
+            "apiProfile": "unit-tool-api",
+            "command": [],
+            "timeoutSeconds": 30,
+            "description": "Unit-test tool agent model.",
+        }
+        workspace.save_config()
+        record, result = run_agent(
+            workspace,
+            "planner",
+            "Write a memory note through a tool.",
+            model_name="unit-tool-agent",
+            execute=True,
+        )
+        self.assertEqual(result["returncode"], 0)
+        self.assertEqual(result["stdout"], "memory saved")
+        self.assertEqual(result["toolCalls"][0]["name"], "memory_write_note")
+        self.assertTrue(memory_search(workspace, "Runtime Memory"))
+        payload = json.loads(record.read_text(encoding="utf-8"))
+        self.assertEqual(payload["status"], "ok")
+        self.assertEqual(payload["runner"], "tool-agent")
+
     def test_hermes_reflections_keep_source_metadata(self) -> None:
         workspace = self.make_workspace()
         records = {skill.name: skill for skill in discover_skills(workspace)}
@@ -276,6 +381,64 @@ class WorkspaceTest(unittest.TestCase):
         self.assertTrue(rows)
         self.assertEqual(rows[0]["agent"], "planner")
 
+    def test_semantic_memory_write_get_link_search(self) -> None:
+        workspace = self.make_workspace()
+        first = memory_write_note(
+            workspace,
+            "Model Preference",
+            "Prefer local CLI model selection unless an API run is explicitly requested.",
+            kind="feedback",
+            note_type="preference",
+            tags=["models"],
+            sources=["unit-test"],
+            confidence=0.9,
+        )
+        self.assertTrue(first.path.exists())
+        memory_write_note(
+            workspace,
+            "API Gateway",
+            "Gateway actions should stay localhost or token-gated.",
+            kind="feedback",
+            note_type="fact",
+            tags=["gateway"],
+            sources=["unit-test"],
+        )
+        linked = memory_link(workspace, "Model Preference", "API Gateway")
+        raw = linked.path.read_text(encoding="utf-8")
+        self.assertIn("[[API Gateway]]", raw)
+        note = memory_get_note(workspace, "Model Preference")
+        self.assertEqual(note["type"], "preference")
+        self.assertEqual(note["kind"], "feedback")
+        found = memory_search(workspace, "API Gateway")
+        self.assertTrue(found)
+
+    def test_approvals_queue_and_resolve_file_write(self) -> None:
+        workspace = self.make_workspace()
+        proposed = propose_action(
+            workspace,
+            category="file",
+            title="Write approval smoke file",
+            description="Create a small file only after approval.",
+            payload={"path": "approved/smoke.txt", "content": "approved"},
+            origin="unit-test",
+        )
+        self.assertEqual(proposed["status"], "pending")
+        rows = approval_rows(workspace)
+        self.assertEqual(len(rows), 1)
+        from birkin_agent.approvals import approve
+
+        result = approve(workspace, rows[0]["id"])
+        self.assertIn("wrote approved", result["result"])
+        self.assertEqual((workspace.root / "approved" / "smoke.txt").read_text(encoding="utf-8"), "approved")
+        self.assertEqual(approval_rows(workspace), [])
+
+    def test_morpheus_dry_run_no_key(self) -> None:
+        workspace = self.make_workspace()
+        result = run_morpheus(workspace, dry_run=True)
+        self.assertEqual(result["status"], "dry-run")
+        self.assertTrue(Path(result["record"]).exists())
+        self.assertIn("recent runs", result["summary"])
+
     def test_setup_wizard_model_memory_and_telegram(self) -> None:
         workspace = self.make_workspace()
         report = setup_wizard(
@@ -293,6 +456,22 @@ class WorkspaceTest(unittest.TestCase):
         status = telegram_status(workspace)
         self.assertTrue(status["enabled"])
         self.assertEqual(status["chatId"], "12345")
+
+    def test_telegram_inbound_config_is_env_only(self) -> None:
+        workspace = self.make_workspace()
+        configure_telegram(
+            workspace,
+            "",
+            "BIRKIN_TEST_TELEGRAM_TOKEN",
+            enabled=False,
+            inbound_enabled=True,
+        )
+        status = telegram_status(workspace)
+        self.assertTrue(status["inboundEnabled"])
+        self.assertEqual(status["botTokenEnv"], "BIRKIN_TEST_TELEGRAM_TOKEN")
+        errors, warnings = validate_telegram(workspace)
+        self.assertIn("telegram bot token environment variable is not set: BIRKIN_TEST_TELEGRAM_TOKEN", errors)
+        self.assertEqual(warnings, [])
 
     def test_dashboard_summarizes_jobs_usage_and_warnings(self) -> None:
         workspace = self.make_workspace()
@@ -366,6 +545,41 @@ class WorkspaceTest(unittest.TestCase):
         self.assertIn("gateway", status)
         self.assertIn("setup", status)
         self.assertIn("skillConfig", status)
+        self.assertIn("approvals", status)
+        self.assertIn("morpheus", status)
+        self.assertIn("daemon", status)
+        self.assertIn("schedules", status)
+
+        proposed = propose_action(
+            workspace,
+            category="file",
+            title="Dashboard approval file",
+            description="Approval API smoke.",
+            payload={"path": "approved/dashboard.txt", "content": "ok"},
+            origin="unit-test",
+        )
+        approval_body = json.dumps({"id": proposed["id"], "action": "approve"}).encode("utf-8")
+        approval_request = Request(
+            f"http://{host}:{port}/api/approvals",
+            data=approval_body,
+            headers={"content-type": "application/json"},
+            method="POST",
+        )
+        with urlopen(approval_request, timeout=5) as response:
+            approval_payload = json.loads(response.read().decode("utf-8"))
+        self.assertIn("approval", approval_payload)
+        self.assertTrue((workspace.root / "approved" / "dashboard.txt").exists())
+
+        morpheus_body = json.dumps({"dryRun": True}).encode("utf-8")
+        morpheus_request = Request(
+            f"http://{host}:{port}/api/morpheus",
+            data=morpheus_body,
+            headers={"content-type": "application/json"},
+            method="POST",
+        )
+        with urlopen(morpheus_request, timeout=5) as response:
+            morpheus_payload = json.loads(response.read().decode("utf-8"))
+        self.assertEqual(morpheus_payload["morpheus"]["status"], "dry-run")
 
         body = json.dumps({"agent": "planner", "model": "packet", "task": "Plan a release"}).encode("utf-8")
         request = Request(
@@ -427,6 +641,40 @@ class WorkspaceTest(unittest.TestCase):
         with urlopen(f"http://{host}:{port}/api/memory", timeout=5) as response:
             memory = json.loads(response.read().decode("utf-8"))
         self.assertIn("memory", memory)
+
+        proposed = propose_action(
+            workspace,
+            category="file",
+            title="Gateway approval file",
+            description="Gateway approval API smoke.",
+            payload={"path": "approved/gateway.txt", "content": "ok"},
+            origin="unit-test",
+        )
+        with urlopen(f"http://{host}:{port}/api/approvals", timeout=5) as response:
+            approvals_payload = json.loads(response.read().decode("utf-8"))
+        self.assertEqual(len(approvals_payload["approvals"]), 1)
+        approval_body = json.dumps({"id": proposed["id"], "action": "approve"}).encode("utf-8")
+        approval_request = Request(
+            f"http://{host}:{port}/api/approvals",
+            data=approval_body,
+            headers={"content-type": "application/json"},
+            method="POST",
+        )
+        with urlopen(approval_request, timeout=5) as response:
+            approval_result = json.loads(response.read().decode("utf-8"))
+        self.assertIn("approval", approval_result)
+        self.assertTrue((workspace.root / "approved" / "gateway.txt").exists())
+
+        morpheus_body = json.dumps({"dryRun": True}).encode("utf-8")
+        morpheus_request = Request(
+            f"http://{host}:{port}/api/morpheus",
+            data=morpheus_body,
+            headers={"content-type": "application/json"},
+            method="POST",
+        )
+        with urlopen(morpheus_request, timeout=5) as response:
+            morpheus_payload = json.loads(response.read().decode("utf-8"))
+        self.assertEqual(morpheus_payload["morpheus"]["status"], "dry-run")
 
         body = json.dumps({"agent": "planner", "model": "packet", "task": "Plan a release"}).encode("utf-8")
         request = Request(

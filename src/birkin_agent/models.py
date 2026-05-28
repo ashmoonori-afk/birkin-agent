@@ -167,11 +167,13 @@ def validate_models(workspace: Workspace) -> tuple[list[str], list[str]]:
             errors.append(f"{profile.id}: missing model")
         if profile.runner and profile.runner not in runner_config:
             errors.append(f"{profile.id}: runner not found: {profile.runner}")
-        if profile.runner == "api":
+        runner = runner_config.get(profile.runner, {}) if profile.runner else {}
+        runner_type = str(runner.get("type") or "")
+        if profile.runner == "api" or runner_type in {"api", "tool-agent"}:
             api_profiles = workspace.config.get("api", {}).get("profiles", {})
-            api_profile = profile.api_profile or workspace.config.get("runners", {}).get("api", {}).get("profile")
+            api_profile = profile.api_profile or runner.get("profile") or workspace.config.get("runners", {}).get("api", {}).get("profile")
             if not api_profile:
-                errors.append(f"{profile.id}: api model profile requires apiProfile or runners.api.profile")
+                errors.append(f"{profile.id}: api model profile requires apiProfile or runner profile")
             elif isinstance(api_profiles, dict) and api_profile not in api_profiles:
                 errors.append(f"{profile.id}: api profile not found: {api_profile}")
         if profile.command and not all(isinstance(part, str) and part for part in profile.command):

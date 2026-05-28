@@ -73,6 +73,13 @@ DEFAULT_CONFIG = {
             "timeoutSeconds": 1800,
             "description": "OpenAI-compatible chat completions API adapter.",
         },
+        "tool-agent": {
+            "type": "tool-agent",
+            "profile": "openai-compatible",
+            "timeoutSeconds": 1800,
+            "maxTurns": 8,
+            "description": "OpenAI-compatible tool-calling agent runtime with approval-gated consequential tools.",
+        },
     },
     "models": {
         "default": "packet",
@@ -101,6 +108,15 @@ DEFAULT_CONFIG = {
                 "command": [],
                 "timeoutSeconds": 1800,
                 "description": "OpenAI-compatible API profile. Requires OPENAI_API_KEY when using the default endpoint.",
+            },
+            "api-agent": {
+                "provider": "openai-compatible",
+                "model": "gpt-5.5",
+                "runner": "tool-agent",
+                "apiProfile": "openai-compatible",
+                "command": [],
+                "timeoutSeconds": 1800,
+                "description": "OpenAI-compatible tool-calling agent profile with approval-gated shell, web, Telegram, and scheduling actions.",
             },
             "custom-local": {
                 "provider": "local-cli",
@@ -179,6 +195,24 @@ DEFAULT_CONFIG = {
         "botTokenEnv": "TELEGRAM_BOT_TOKEN",
         "chatId": "",
         "parseMode": "",
+        "inboundEnabled": False,
+        "lastUpdateId": 0,
+    },
+    "approvals": {
+        "autoApprove": ["memory", "skills"],
+        "pendingPath": "approvals/pending",
+        "historyPath": "approvals/history",
+    },
+    "morpheus": {
+        "enabled": False,
+        "hour": 4,
+        "minute": 0,
+        "timezone": "local",
+        "dryRun": True,
+    },
+    "scheduler": {
+        "path": "schedules/jobs.json",
+        "statusPath": "schedules/daemon-status.json",
     },
     "ledger": {
         "path": "usage/ledger.jsonl",
@@ -1054,6 +1088,32 @@ birkin-codex setup wizard \
 ```"""
 
 
+RUNTIME_APPROVAL_MORPHEUS_DOC = r"""# Runtime, Approvals, and Morpheus
+
+Scope date: 2026-05-28.
+
+Birkin Codex keeps packet, local CLI, and API runners, then adds one structured
+OpenAI-compatible `tool-agent` runtime through the `api-agent` model profile.
+
+The tool runtime can load skills, write/search/get/link semantic memory, read/list
+workspace files, and spawn packet-only subagents. Consequential actions such as shell,
+external web fetch, Telegram send, scheduling, and model-requested file writes are queued
+under approvals.
+
+```sh
+birkin-codex approvals list
+birkin-codex approvals approve <approval-id>
+birkin-codex approvals reject <approval-id>
+birkin-codex morpheus --dry-run
+birkin-codex daemon status
+```
+
+Morpheus is the 04:00 self-improvement review. It reads recent conversations, runs,
+errors, feedback, ledger rows, and changed files; it updates memory/skills when safe and
+proposes consequential automations for approval.
+"""
+
+
 DEFAULT_DOC_FILES = {
     "docs/reference-notes.md": REFERENCE_NOTES,
     "docs/architecture.md": ARCHITECTURE_DOC,
@@ -1063,6 +1123,7 @@ DEFAULT_DOC_FILES = {
     "docs/auth-api-gateway.md": AUTH_API_GATEWAY_DOC,
     "docs/setup-chat-skills.md": SETUP_CHAT_SKILLS_DOC,
     "docs/memory-ledger-telegram.md": MEMORY_LEDGER_TELEGRAM_DOC,
+    "docs/runtime-approval-morpheus.md": RUNTIME_APPROVAL_MORPHEUS_DOC,
 }
 
 

@@ -21,6 +21,9 @@ birkin-codex memory status
 birkin-codex memory set-vault /path/to/vault --allow-external
 birkin-codex memory record --kind feedback --text "USER_CORRECTION: ..."
 birkin-codex memory recall "search phrase"
+birkin-codex memory write-note --title "User Preference" --body "Prefer local CLI first." --type preference --confidence 0.9
+birkin-codex memory get-note "User Preference"
+birkin-codex memory link --from-title "User Preference" --to-title "Model Selection"
 ```
 
 Automatic capture:
@@ -32,6 +35,10 @@ Automatic capture:
 
 Chat calls run memory recall before building the prompt and include matching note
 snippets in a `Recalled Memory` section.
+
+Semantic notes include frontmatter fields for `kind`, `type`, `created`, `updated`,
+`confidence`, `sources`, and `tags`. Links are written as Obsidian `[[wikilink]]`
+relationships.
 
 ## Ledger
 
@@ -59,8 +66,10 @@ Telegram stores only the chat id and token environment variable name:
 
 ```sh
 birkin-codex telegram setup --chat-id 123456 --token-env TELEGRAM_BOT_TOKEN --enable
+birkin-codex telegram setup --chat-id 123456 --token-env TELEGRAM_BOT_TOKEN --enable --enable-inbound
 birkin-codex telegram status
 birkin-codex telegram test --message "Birkin is connected."
+birkin-codex telegram poll --once
 ```
 
 Set the token outside the repo:
@@ -74,6 +83,10 @@ On Windows PowerShell:
 ```powershell
 $env:TELEGRAM_BOT_TOKEN = "..."
 ```
+
+The `telegram test` command is explicitly user-triggered and sends immediately.
+Telegram sends requested by the tool-calling runtime are queued under approvals.
+Inbound long-polling is opt-in and stores received text as conversation memory.
 
 ## Wizard
 
@@ -92,5 +105,6 @@ birkin-codex setup wizard \
   --telegram-chat-id 123456 \
   --telegram-token-env TELEGRAM_BOT_TOKEN \
   --enable-telegram \
+  --enable-telegram-inbound \
   --non-interactive
 ```

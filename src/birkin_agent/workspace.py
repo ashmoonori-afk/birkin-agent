@@ -48,6 +48,9 @@ class Workspace:
             "usage",
             "memory",
             "improvements",
+            "approvals/pending",
+            "approvals/history",
+            "schedules",
             "reviews",
             "docs",
         ]:

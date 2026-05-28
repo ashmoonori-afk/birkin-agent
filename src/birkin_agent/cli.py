@@ -12,8 +12,21 @@ from .chat import run_chat
 from .gateway import ROUTES, gateway_info, serve_gateway, validate_gateway
 from .improve import append_lesson, apply_improvement, propose_improvement
 from .ledger import ledger_rows, ledger_summary
-from .memory import configure_obsidian_vault, memory_status, recall_memory, record_feedback, validate_memory
+from .approvals import approval_rows, approve, reject
+from .memory import (
+    configure_obsidian_vault,
+    memory_get_note,
+    memory_link,
+    memory_search,
+    memory_status,
+    memory_write_note,
+    recall_memory,
+    record_feedback,
+    validate_memory,
+)
 from .models import add_model_profile, model_rows, use_model_profile, validate_models
+from .morpheus import run_morpheus
+from .scheduler import daemon_status, run_daemon, schedule_rows
 from .setup import setup_report, setup_rows
 from .skills import create_skill, discover_skills, skill_config_rows, skill_rows, validate_skills
 from .telegram import configure_telegram, send_telegram_message, telegram_status, validate_telegram
@@ -30,6 +43,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_chat_interactive(
             argparse.Namespace(agent=None, model=None, provider=None, execute=False)
         )
+    if argv[0] == "nightly":
+        argv = ["morpheus", *argv[1:]]
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
@@ -60,6 +75,9 @@ def build_parser() -> argparse.ArgumentParser:
     add_memory_parser(sub.add_parser("memory", help="Manage Obsidian-backed memory"))
     add_ledger_parser(sub.add_parser("ledger", help="Inspect usage ledger"))
     add_telegram_parser(sub.add_parser("telegram", help="Configure Telegram onboarding"))
+    add_approvals_parser(sub.add_parser("approvals", help="Review pending consequential actions"))
+    add_morpheus_parser(sub.add_parser("morpheus", help="Run the Morpheus self-improvement pass"))
+    add_daemon_parser(sub.add_parser("daemon", help="Run the portable Birkin daemon"))
 
     wizard = sub.add_parser("wizard", help="Run the first-run setup wizard")
     add_wizard_args(wizard)
@@ -173,6 +191,7 @@ def add_wizard_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--telegram-chat-id")
     parser.add_argument("--telegram-token-env", default="TELEGRAM_BOT_TOKEN")
     parser.add_argument("--enable-telegram", action="store_true")
+    parser.add_argument("--enable-telegram-inbound", action="store_true")
     parser.add_argument("--non-interactive", action="store_true")
 
 
@@ -271,6 +290,30 @@ def add_memory_parser(parser: argparse.ArgumentParser) -> None:
     recall.add_argument("query")
     recall.add_argument("--json", action="store_true")
     recall.set_defaults(func=cmd_memory_recall)
+    search = memory_sub.add_parser("search")
+    search.add_argument("query")
+    search.add_argument("--limit", type=int, default=8)
+    search.add_argument("--json", action="store_true")
+    search.set_defaults(func=cmd_memory_search)
+    write = memory_sub.add_parser("write-note")
+    write.add_argument("--title", required=True)
+    write.add_argument("--body", required=True)
+    write.add_argument("--kind", default="feedback", choices=["feedback", "errors", "conversations", "runs"])
+    write.add_argument("--type", default="topic")
+    write.add_argument("--confidence", type=float, default=0.7)
+    write.add_argument("--tag", action="append", default=[])
+    write.add_argument("--source", action="append", default=[])
+    write.add_argument("--link", action="append", default=[])
+    write.add_argument("--append", action="store_true")
+    write.set_defaults(func=cmd_memory_write_note)
+    get_note = memory_sub.add_parser("get-note")
+    get_note.add_argument("title")
+    get_note.add_argument("--json", action="store_true")
+    get_note.set_defaults(func=cmd_memory_get_note)
+    link = memory_sub.add_parser("link")
+    link.add_argument("--from-title", required=True)
+    link.add_argument("--to-title", required=True)
+    link.set_defaults(func=cmd_memory_link)
 
 
 def add_ledger_parser(parser: argparse.ArgumentParser) -> None:
@@ -293,11 +336,48 @@ def add_telegram_parser(parser: argparse.ArgumentParser) -> None:
     setup.add_argument("--chat-id", required=True)
     setup.add_argument("--token-env", default="TELEGRAM_BOT_TOKEN")
     setup.add_argument("--enable", action="store_true")
+    setup.add_argument("--enable-inbound", action="store_true")
     setup.set_defaults(func=cmd_telegram_setup)
     test = telegram_sub.add_parser("test")
     test.add_argument("--message", default="Birkin Codex Telegram onboarding test.")
     test.add_argument("--json", action="store_true")
     test.set_defaults(func=cmd_telegram_test)
+    poll = telegram_sub.add_parser("poll")
+    poll.add_argument("--once", action="store_true")
+    poll.add_argument("--json", action="store_true")
+    poll.set_defaults(func=cmd_telegram_poll)
+
+
+def add_approvals_parser(parser: argparse.ArgumentParser) -> None:
+    approvals_sub = parser.add_subparsers(required=True)
+    list_cmd = approvals_sub.add_parser("list")
+    list_cmd.add_argument("--json", action="store_true")
+    list_cmd.set_defaults(func=cmd_approvals_list)
+    approve_cmd = approvals_sub.add_parser("approve")
+    approve_cmd.add_argument("id")
+    approve_cmd.add_argument("--json", action="store_true")
+    approve_cmd.set_defaults(func=cmd_approvals_approve)
+    reject_cmd = approvals_sub.add_parser("reject")
+    reject_cmd.add_argument("id")
+    reject_cmd.add_argument("--json", action="store_true")
+    reject_cmd.set_defaults(func=cmd_approvals_reject)
+
+
+def add_morpheus_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--json", action="store_true")
+    parser.set_defaults(func=cmd_morpheus)
+
+
+def add_daemon_parser(parser: argparse.ArgumentParser) -> None:
+    daemon_sub = parser.add_subparsers(required=True)
+    status = daemon_sub.add_parser("status")
+    status.add_argument("--json", action="store_true")
+    status.set_defaults(func=cmd_daemon_status)
+    run = daemon_sub.add_parser("run")
+    run.add_argument("--once", action="store_true")
+    run.add_argument("--interval", type=int, default=60)
+    run.set_defaults(func=cmd_daemon_run)
 
 
 def ws() -> Workspace:
@@ -370,6 +450,7 @@ def cmd_setup_wizard(args: argparse.Namespace) -> int:
         telegram_chat_id=args.telegram_chat_id,
         telegram_token_env=args.telegram_token_env,
         enable_telegram=args.enable_telegram,
+        enable_telegram_inbound=args.enable_telegram_inbound,
         interactive=not args.non_interactive,
     )
     print_table(report["steps"], ["step", "status", "detail"])
@@ -570,6 +651,47 @@ def cmd_memory_recall(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_memory_search(args: argparse.Namespace) -> int:
+    rows = memory_search(ws(), args.query, limit=args.limit)
+    if args.json:
+        print(json.dumps(rows, indent=2, ensure_ascii=False))
+    else:
+        print_table(rows, ["title", "kind", "type", "confidence", "score", "snippet", "path"])
+    return 0
+
+
+def cmd_memory_write_note(args: argparse.Namespace) -> int:
+    note = memory_write_note(
+        ws(),
+        args.title,
+        args.body,
+        kind=args.kind,
+        note_type=args.type,
+        tags=args.tag,
+        links=args.link,
+        confidence=args.confidence,
+        sources=args.source,
+        append=args.append,
+    )
+    print(note.path)
+    return 0
+
+
+def cmd_memory_get_note(args: argparse.Namespace) -> int:
+    note = memory_get_note(ws(), args.title)
+    if args.json:
+        print(json.dumps(note, indent=2, ensure_ascii=False))
+    else:
+        print(note["raw"])
+    return 0
+
+
+def cmd_memory_link(args: argparse.Namespace) -> int:
+    note = memory_link(ws(), args.from_title, args.to_title)
+    print(note.path)
+    return 0
+
+
 def cmd_ledger_summary(args: argparse.Namespace) -> int:
     summary = ledger_summary(ws())
     if args.json:
@@ -613,15 +735,16 @@ def cmd_telegram_status(args: argparse.Namespace) -> int:
                     "tokenPresent": "yes" if status["tokenPresent"] else "no",
                     "chatId": "set" if status["chatId"] else "",
                     "parseMode": status["parseMode"],
+                    "inbound": "yes" if status["inboundEnabled"] else "no",
                 }
             ],
-            ["enabled", "botTokenEnv", "tokenPresent", "chatId", "parseMode"],
+            ["enabled", "botTokenEnv", "tokenPresent", "chatId", "parseMode", "inbound"],
         )
     return 0
 
 
 def cmd_telegram_setup(args: argparse.Namespace) -> int:
-    configure_telegram(ws(), args.chat_id, args.token_env, enabled=args.enable)
+    configure_telegram(ws(), args.chat_id, args.token_env, enabled=args.enable, inbound_enabled=args.enable_inbound)
     print(f"telegram chat id {'enabled' if args.enable else 'configured'}")
     return 0
 
@@ -636,6 +759,71 @@ def cmd_telegram_test(args: argparse.Namespace) -> int:
         if result["stderr"]:
             print(result["stderr"], file=sys.stderr)
     return int(result.get("returncode") or 0)
+
+
+def cmd_telegram_poll(args: argparse.Namespace) -> int:
+    from .telegram import poll_telegram_once
+
+    result = poll_telegram_once(ws())
+    if args.json:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        print_table(result.get("messages", []), ["updateId", "chatId", "text", "memoryNote"])
+    return 0
+
+
+def cmd_approvals_list(args: argparse.Namespace) -> int:
+    rows = approval_rows(ws())
+    if args.json:
+        print(json.dumps(rows, indent=2, ensure_ascii=False))
+    else:
+        print_table(rows, ["id", "category", "title", "origin", "status", "created", "description"])
+    return 0
+
+
+def cmd_approvals_approve(args: argparse.Namespace) -> int:
+    result = approve(ws(), args.id)
+    if args.json:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        print(result.get("result") or "approved")
+    return 0
+
+
+def cmd_approvals_reject(args: argparse.Namespace) -> int:
+    result = reject(ws(), args.id)
+    if args.json:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        print(result.get("result") or "rejected")
+    return 0
+
+
+def cmd_morpheus(args: argparse.Namespace) -> int:
+    result = run_morpheus(ws(), dry_run=args.dry_run)
+    if args.json:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        print(result["summary"])
+        print(f"record {result['record']}")
+    return 0
+
+
+def cmd_daemon_status(args: argparse.Namespace) -> int:
+    workspace = ws()
+    payload = {"daemon": daemon_status(workspace), "schedules": schedule_rows(workspace)}
+    if args.json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    else:
+        print_table([payload["daemon"]], ["running", "lastCheck", "lastMorpheus", "path"])
+        print()
+        print_table(payload["schedules"], ["id", "name", "hour", "minute", "action", "created"])
+    return 0
+
+
+def cmd_daemon_run(args: argparse.Namespace) -> int:
+    run_daemon(ws(), once=args.once, interval_seconds=args.interval)
+    return 0
 
 
 def cmd_skills_list(args: argparse.Namespace) -> int:

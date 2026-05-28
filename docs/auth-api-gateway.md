@@ -1,6 +1,6 @@
 # Auth, API, and Gateway
 
-Scope date: 2026-05-27.
+Scope date: 2026-05-28.
 
 Birkin supports three Hermes-style integration paths while keeping the default runner
 safe and local:
@@ -8,7 +8,7 @@ safe and local:
 - Local CLI auth profiles delegate OAuth/login state to a tool such as `codex`.
 - API profiles call OpenAI-compatible chat completions endpoints.
 - The gateway exposes a local HTTP control surface for status, model lists, auth status,
-  and run creation.
+  approvals, Morpheus, and run creation.
 
 ## Local CLI Auth
 
@@ -59,6 +59,7 @@ API profiles target OpenAI-compatible chat completions APIs. The default
 birkin-codex api list
 birkin-codex model use api-openai
 birkin-codex agents run builder --model api-openai --execute --task "Draft the change"
+birkin-codex agents run builder --model api-agent --execute --task "Use tools when useful"
 ```
 
 For a local server:
@@ -78,6 +79,11 @@ birkin-codex model add local-api \
 The API runner sends one user message containing the built Birkin prompt packet. It
 extracts `choices[0].message.content` when the response uses the standard chat
 completions shape.
+
+The `api-agent` profile uses the tool-calling runtime. It can load skills, search and
+write semantic memory, read/list workspace files, and spawn packet-only scoped
+subagents. Shell, external web fetches, Telegram sends, schedules, and model-requested
+file writes are queued for approval.
 
 ## Gateway
 
@@ -110,8 +116,13 @@ GET /api/skills/config
 GET /api/memory
 GET /api/ledger
 GET /api/telegram
+GET /api/approvals
+GET /api/schedules
+GET /api/daemon
 POST /api/run
 POST /api/chat
+POST /api/approvals
+POST /api/morpheus
 POST /api/auth/{profile}/status
 POST /api/auth/{profile}/login
 POST /api/auth/{profile}/logout

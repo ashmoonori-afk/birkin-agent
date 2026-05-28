@@ -124,6 +124,15 @@
         "timeoutSeconds": 1800,
         "description": "OpenAI-compatible API profile. Requires OPENAI_API_KEY when using the default endpoint."
       },
+      "api-agent": {
+        "provider": "openai-compatible",
+        "model": "gpt-5.5",
+        "runner": "tool-agent",
+        "apiProfile": "openai-compatible",
+        "command": [],
+        "timeoutSeconds": 1800,
+        "description": "OpenAI-compatible tool-calling agent profile with approval-gated shell, web, Telegram, and scheduling actions."
+      },
       "custom-local": {
         "provider": "local-cli",
         "model": "local",
@@ -150,6 +159,13 @@
       "profile": "openai-compatible",
       "timeoutSeconds": 1800,
       "description": "OpenAI-compatible chat completions API adapter."
+    },
+    "tool-agent": {
+      "type": "tool-agent",
+      "profile": "openai-compatible",
+      "timeoutSeconds": 1800,
+      "maxTurns": 8,
+      "description": "OpenAI-compatible tool-calling agent runtime with approval-gated consequential tools."
     }
   },
   "auth": {
@@ -232,7 +248,28 @@
     "enabled": false,
     "botTokenEnv": "TELEGRAM_BOT_TOKEN",
     "chatId": "",
-    "parseMode": ""
+    "parseMode": "",
+    "inboundEnabled": false,
+    "lastUpdateId": 0
+  },
+  "approvals": {
+    "autoApprove": [
+      "memory",
+      "skills"
+    ],
+    "pendingPath": "approvals/pending",
+    "historyPath": "approvals/history"
+  },
+  "morpheus": {
+    "enabled": false,
+    "hour": 4,
+    "minute": 0,
+    "timezone": "local",
+    "dryRun": true
+  },
+  "scheduler": {
+    "path": "schedules/jobs.json",
+    "statusPath": "schedules/daemon-status.json"
   },
   "ledger": {
     "path": "usage/ledger.jsonl",

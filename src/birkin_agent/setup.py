@@ -5,11 +5,14 @@ from typing import Any
 
 from .agents import validate_agents
 from .api import validate_api
+from .approvals import approval_rows
 from .auth import auth_rows, validate_auth
 from .gateway import gateway_info, validate_gateway
 from .ledger import ledger_summary
 from .memory import memory_status, validate_memory
 from .models import model_rows, validate_models
+from .morpheus import morpheus_status
+from .scheduler import schedule_rows
 from .skills import skill_config_rows, skill_rows, validate_skills
 from .telegram import telegram_status, validate_telegram
 from .workspace import Workspace
@@ -96,6 +99,33 @@ def setup_checks(workspace: Workspace) -> list[SetupCheck]:
         [],
         f"Usage ledger has {ledger['totals']['runs']} entries at {ledger['path']}.",
         "birkin-codex ledger summary",
+    )
+    approvals = approval_rows(workspace)
+    add_check(
+        rows,
+        "approvals",
+        [],
+        [f"{len(approvals)} pending approval(s)"] if approvals else [],
+        "Consequential shell, web, Telegram, and schedule actions are approval-gated.",
+        "birkin-codex approvals list",
+    )
+    morpheus = morpheus_status(workspace)
+    add_check(
+        rows,
+        "morpheus",
+        [],
+        [] if morpheus["enabled"] else ["Morpheus daemon is not enabled"],
+        f"Morpheus configured for {morpheus['hour']:02d}:{morpheus['minute']:02d}.",
+        "birkin-codex morpheus --dry-run",
+    )
+    schedules = schedule_rows(workspace)
+    add_check(
+        rows,
+        "schedules",
+        [],
+        [],
+        f"{len(schedules)} approved schedule(s) stored.",
+        "birkin-codex daemon status",
     )
     skill_errors, skill_warnings = validate_skills(workspace)
     skills = skill_rows(workspace)

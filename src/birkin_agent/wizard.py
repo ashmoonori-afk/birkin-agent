@@ -15,6 +15,7 @@ def setup_wizard(
     telegram_chat_id: str | None = None,
     telegram_token_env: str | None = None,
     enable_telegram: bool | None = None,
+    enable_telegram_inbound: bool | None = None,
     interactive: bool = True,
 ) -> dict[str, Any]:
     rows: list[dict[str, str]] = []
@@ -38,16 +39,19 @@ def setup_wizard(
     token_env = telegram_token_env or "TELEGRAM_BOT_TOKEN"
     chat_id = telegram_chat_id or ""
     enabled = bool(enable_telegram) if enable_telegram is not None else False
+    inbound_enabled = bool(enable_telegram_inbound) if enable_telegram_inbound is not None else False
     if interactive and telegram_chat_id is None:
         answer = input("Enable Telegram onboarding? [y/N]: ").strip().lower()
         enabled = answer in {"y", "yes"}
         if enabled:
             token_env = input(f"Telegram bot token env [{token_env}]: ").strip() or token_env
             chat_id = input("Telegram chat id: ").strip()
+            inbound_answer = input("Enable Telegram inbound long polling? [y/N]: ").strip().lower()
+            inbound_enabled = inbound_answer in {"y", "yes"}
     if enabled or telegram_chat_id is not None:
-        configure_telegram(workspace, chat_id, token_env, enabled=enabled)
+        configure_telegram(workspace, chat_id, token_env, enabled=enabled, inbound_enabled=inbound_enabled)
         status = telegram_status(workspace)
-        detail = f"enabled={status['enabled']} tokenEnv={status['botTokenEnv']} chatId={'set' if status['chatId'] else 'missing'}"
+        detail = f"enabled={status['enabled']} inbound={status['inboundEnabled']} tokenEnv={status['botTokenEnv']} chatId={'set' if status['chatId'] else 'missing'}"
         rows.append({"step": "telegram", "status": "ok" if status["chatId"] or not enabled else "warning", "detail": detail})
     else:
         rows.append({"step": "telegram", "status": "warning", "detail": "telegram onboarding skipped"})

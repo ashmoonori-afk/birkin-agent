@@ -1,6 +1,6 @@
 # Architecture
 
-Scope date: 2026-05-27.
+Scope date: 2026-05-28.
 
 Birkin is a lightweight Python implementation of a Hermes-style agent workspace. It uses
 Hermes Agent as the reference model for `SKILL.md` driven progressive disclosure and
@@ -22,16 +22,25 @@ compatibility with their private internals.
   login, logout, and status commands to external CLIs such as `codex`.
 - `src/birkin_agent/api.py`: calls OpenAI-compatible chat completions endpoints
   through configured API profiles.
+- `src/birkin_agent/runtime.py`: runs the OpenAI-compatible tool-calling agent loop
+  used by the `api-agent` model profile.
+- `src/birkin_agent/approvals.py`: queues consequential shell, external web,
+  Telegram, schedule, and file-write actions for explicit user approval.
 - `src/birkin_agent/chat.py`: builds chat-mode tasks and writes normal run records
   through the selected agent and model profile.
 - `src/birkin_agent/setup.py`: produces Hermes-style setup checks across workspace,
-  models, auth, API, gateway, skills, agents, and chat.
+  models, auth, API, gateway, approvals, Morpheus, skills, agents, and chat.
 - `src/birkin_agent/memory.py`: writes and recalls Obsidian-compatible markdown memory
-  for conversations, feedback, errors, and run summaries.
+  for conversations, feedback, errors, and run summaries, including semantic
+  frontmatter and Obsidian wikilinks.
 - `src/birkin_agent/ledger.py`: appends one JSONL ledger entry per run and aggregates
   estimated/provider usage.
 - `src/birkin_agent/telegram.py`: stores Telegram onboarding config and sends bot test
-  messages using a token environment variable.
+  messages using a token environment variable. Optional inbound polling writes
+  received messages as conversation memory.
+- `src/birkin_agent/morpheus.py`: exposes Morpheus, the 04:00 self-improvement
+  review that can run manually or through the local daemon.
+- `src/birkin_agent/scheduler.py`: stores approved local schedules and daemon status.
 - `src/birkin_agent/gateway.py`: serves a local machine-facing HTTP gateway for
   health, status, model, auth, API, setup, skill config, chat, and run operations.
 - `src/birkin_agent/improve.py`: records lessons, gathers signals, creates pending
@@ -64,11 +73,14 @@ The first skill with a given `name` wins. Later duplicates are reported as shado
 - Default model profile is `packet`, which never calls an external model.
 - Real CLI or API execution requires an explicit model profile in `birkin.json`
   and `--execute` on the run command.
+- The `api-agent` runner can call structured tools. Consequential tools are
+  queued in approvals instead of executing directly.
 - Local CLI OAuth profiles call the external tool's own login store and do not write
   tokens to Birkin config.
 - The gateway binds to localhost by default. If `BIRKIN_GATEWAY_TOKEN` is set, or
   `gateway.requireToken` is true, it requires a bearer token or `x-birkin-token`.
 - Chat uses the same `--execute` safety boundary as other agent runs.
+- Morpheus dry-run works without API keys and does not execute consequential actions.
 - `skills config` verifies root, enabled/disabled, gated, precedence, and reflection
   coverage in addition to `SKILL.md` validation.
 - Skills are procedural memory, not executable trust.

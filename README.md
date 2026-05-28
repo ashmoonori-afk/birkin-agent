@@ -123,7 +123,8 @@ birkin-codex memory search "model preference" --type preference --scope project
 Running `birkin-codex` with no arguments opens the chat prompt with the Birkin banner,
 memory tagline, selected model, enabled skill count, and Obsidian vault path.
 Type `/` or `/help` in chat to show the command picker; `/skills` auto-repairs missing
-bundled skill files before reporting catalog health.
+bundled skill files and shows the enabled skill list. Use `/skill NAME` for one
+skill's status and source, or `/skills health` for catalog checks.
 
 Operations and governance:
 

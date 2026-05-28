@@ -154,6 +154,9 @@ Kept different:
 - `birkin-codex mode status`: passed and reported `mode=lite`, `enabledCount=15`.
 - `birkin-codex update --dry-run --method pip --json`: passed and reported
   `python -m pip install --upgrade --user git+https://github.com/ashmoonori-afk/birkin-agent@main`.
+- Interactive skill smoke with piped chat input passed: `/skills` shows a compact
+  enabled-skill catalog, `/skill memory-recall` shows detail and the body command, and
+  `/skills health` shows the full catalog health table.
 - `birkin-codex skills validate`: `ok`.
 - `birkin-codex skills config`: passed with 168 discovered skills, 15 enabled, 90 Hermes
   reflections, 57 OpenClaw reflections, and 147 mirrored upstream skills.
@@ -197,6 +200,7 @@ Kept different:
 - Lite CLI packet review note: `reviews/2026-05-28-lite-cli-packet-review.md`.
 - Startup/slash/skills review note: `reviews/2026-05-28-startup-slash-skills-review.md`.
 - Latest code review note: `reviews/2026-05-28-update-command-review.md`.
+- Skills display review note: `reviews/2026-05-28-skills-display-review.md`.
 
 ## Git Target
 

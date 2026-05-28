@@ -91,8 +91,10 @@ The startup screen shows the Birkin ASCII banner, the memory tagline, selected m
 enabled skill count, and Obsidian vault path before the `you>` prompt.
 Type `/` to open the command picker. When readline support is available, slash commands
 also complete with Tab. `/skills` repairs missing bundled skill files before showing
-catalog health, so a pip-installed workspace does not get stuck with an empty skill
-catalog.
+the enabled skill list, so a pip-installed workspace does not get stuck with an empty
+skill catalog. `/skills health` shows the catalog checks, `/skills all` shows the
+full discovered catalog, and `/skill NAME` shows one skill's status, source path, and
+body command.
 Use `/update --dry-run` to inspect the self-update command from chat, or `/update` to
 run it.
 
@@ -102,7 +104,11 @@ Interactive commands:
 - `/live` switches to the best available live model profile and turns execution on.
 - `/setup` shows readiness checks.
 - `/dashboard` shows the local dashboard command and URL.
-- `/skills` shows skill configuration checks.
+- `/skills` shows enabled skills.
+- `/skills health` shows skill configuration checks.
+- `/skills all` shows the full discovered skill catalog.
+- `/skills search TEXT` searches skill names and descriptions.
+- `/skill NAME` shows one skill's status, source path, and body command.
 - `/mode lite` switches back to the small default surface.
 - `/mode full` enables all eligible skills and advanced controls.
 - `/model ID` switches the model profile for the current chat.

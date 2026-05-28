@@ -461,13 +461,18 @@ class WorkspaceTest(unittest.TestCase):
         self.assertEqual(discover_skills(workspace), [])
         with (
             patch("birkin_agent.cli.ws", return_value=workspace),
-            patch("builtins.input", side_effect=["/", "/skills", "/status", "/exit"]),
+            patch("builtins.input", side_effect=["/", "/skills", "/skill memory-recall", "/skills health", "/status", "/exit"]),
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
             self.assertEqual(cli_main([]), 0)
         output = stdout.getvalue()
         self.assertIn("/mode lite|full", output)
+        self.assertIn("/skill NAME", output)
         self.assertIn("/status", output)
+        self.assertIn("Skill summary", output)
+        self.assertIn("Enabled skills", output)
+        self.assertIn("memory-recall", output)
+        self.assertIn("body: birkin-codex skills show memory-recall", output)
         self.assertIn("catalog", output)
         self.assertIn("discovered skills", output)
         self.assertNotIn("0 discovered skills", output)

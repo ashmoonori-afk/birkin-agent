@@ -66,7 +66,8 @@ SLASH_COMMANDS = [
     {"command": "/live", "usage": "/live", "description": "Select the best available live model and enable execution."},
     {"command": "/setup", "usage": "/setup", "description": "Show setup readiness checks."},
     {"command": "/dashboard", "usage": "/dashboard", "description": "Show the dashboard command and local URL."},
-    {"command": "/skills", "usage": "/skills", "description": "Show skill catalog health after auto-repairing bundled skills."},
+    {"command": "/skills", "usage": "/skills [all|health|search TEXT]", "description": "Show enabled skills after auto-repairing bundled skills."},
+    {"command": "/skill", "usage": "/skill NAME", "description": "Show one skill's status, source, path, and body command."},
     {"command": "/mode", "usage": "/mode lite|full", "description": "Switch between the small default surface and full operator mode."},
     {"command": "/model", "usage": "/model PROFILE", "description": "Switch the model profile for this chat."},
     {"command": "/execute", "usage": "/execute on|off", "description": "Allow or block runner execution."},
@@ -1509,6 +1510,160 @@ def print_chat_status(
     print_table(rows, ["agent", "model", "mode", "skills", "execute", "vault"])
 
 
+def compact_text(value: str, limit: int = 96) -> str:
+    text = " ".join(str(value or "").split())
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 3)].rstrip() + "..."
+
+
+def skill_status(record: Any) -> str:
+    if record.enabled and record.eligible:
+        return "active"
+    if record.enabled:
+        return "gated"
+    return "off"
+
+
+def skill_path_for_display(workspace: Workspace, path: Path) -> str:
+    try:
+        return str(path.relative_to(workspace.root))
+    except ValueError:
+        return str(path)
+
+
+def compact_skill_rows(records: list[Any], include_reason: bool = False) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for record in records:
+        row = {
+            "name": record.name,
+            "status": skill_status(record),
+            "source": record.source,
+            "description": compact_text(record.description),
+        }
+        if include_reason:
+            row["reason"] = compact_text(record.reason, 72)
+        rows.append(row)
+    return rows
+
+
+def print_chat_skills(workspace: Workspace, command: str) -> None:
+    ensure_bundled_skills(workspace)
+    records = sorted(discover_skills(workspace), key=lambda item: (skill_status(item) != "active", item.name))
+    health = skill_config_rows(workspace)
+    errors = [row for row in health if row["status"] == "error"]
+    warnings = [row for row in health if row["status"] == "warning"]
+    enabled = [record for record in records if record.enabled and record.eligible]
+    gated = [record for record in records if record.enabled and not record.eligible]
+
+    parts = command.split(maxsplit=2)
+    mode = parts[1].strip().lower() if len(parts) > 1 else "enabled"
+    query = parts[2].strip() if len(parts) > 2 else ""
+    if mode in {"health", "config", "check", "checks"}:
+        print_table(health, ["check", "status", "detail"])
+        return
+    if mode == "search" and not query:
+        print("usage: /skills search TEXT")
+        return
+    if mode not in {"enabled", "active", "all", "search"}:
+        query = " ".join(parts[1:]).strip()
+        mode = "search"
+
+    status = "error" if errors else "warning" if warnings else "ready"
+    print("Skill summary")
+    print_table(
+        [
+            {
+                "status": status,
+                "total": str(len(records)),
+                "enabled": str(len(enabled)),
+                "gated": str(len(gated)),
+                "warnings": str(len(warnings)),
+                "errors": str(len(errors)),
+            }
+        ],
+        ["status", "total", "enabled", "gated", "warnings", "errors"],
+    )
+
+    if mode in {"enabled", "active"}:
+        selected = enabled
+        title = "Enabled skills"
+        include_reason = False
+    elif mode == "all":
+        selected = records
+        title = "All discovered skills"
+        include_reason = True
+    else:
+        needle = query.lower()
+        selected = [
+            record
+            for record in records
+            if needle in record.name.lower() or needle in record.description.lower()
+        ]
+        title = f"Skill search: {query}"
+        include_reason = True
+
+    print()
+    print(title)
+    if selected:
+        columns = ["name", "status", "source", "description"]
+        if include_reason:
+            columns.append("reason")
+        print_table(compact_skill_rows(selected, include_reason=include_reason), columns)
+    else:
+        print("No matching skills.")
+
+    if errors or warnings:
+        print()
+        print("Skill issues")
+        print_table([*errors, *warnings], ["check", "status", "detail"])
+
+    print()
+    print("Use /skill NAME for details, /skills all for the full catalog, or /skills health for checks.")
+
+
+def print_chat_skill_detail(workspace: Workspace, name: str) -> None:
+    ensure_bundled_skills(workspace)
+    query = name.strip()
+    if not query:
+        print("usage: /skill NAME")
+        return
+    records = sorted(discover_skills(workspace), key=lambda item: item.name)
+    exact = [record for record in records if record.name.lower() == query.lower()]
+    matches = exact or [
+        record
+        for record in records
+        if query.lower() in record.name.lower() or query.lower() in record.description.lower()
+    ]
+    if not matches:
+        print(f"skill not found: {query}")
+        print("Use /skills search TEXT to search the catalog.")
+        return
+    if len(matches) > 1:
+        print(f"Matching skills for: {query}")
+        print_table(compact_skill_rows(matches, include_reason=True), ["name", "status", "source", "description", "reason"])
+        return
+
+    record = matches[0]
+    print_table(
+        [
+            {
+                "name": record.name,
+                "status": skill_status(record),
+                "source": record.source,
+                "path": skill_path_for_display(workspace, record.path),
+            }
+        ],
+        ["name", "status", "source", "path"],
+    )
+    print(f"description: {record.description or ''}")
+    if record.reason:
+        print(f"reason: {record.reason}")
+    if record.shadowed:
+        print(f"shadowed: {len(record.shadowed)} duplicate skill file(s)")
+    print(f"body: birkin-codex skills show {record.name}")
+
+
 def cmd_chat_interactive(args: argparse.Namespace) -> int:
     workspace = ws()
     ensure_bundled_skills(workspace)
@@ -1567,9 +1722,11 @@ def cmd_chat_interactive(args: argparse.Namespace) -> int:
             print("Run: birkin-codex web --port 8765")
             print("Then open: http://127.0.0.1:8765")
             continue
-        if lowered == "/skills":
-            ensure_bundled_skills(workspace)
-            print_table(skill_config_rows(workspace), ["check", "status", "detail"])
+        if lowered.startswith("/skills"):
+            print_chat_skills(workspace, message)
+            continue
+        if lowered == "/skill" or lowered.startswith("/skill "):
+            print_chat_skill_detail(workspace, message.split(maxsplit=1)[1] if " " in message else "")
             continue
         if lowered.startswith("/mode "):
             value = message.split(maxsplit=1)[1].strip().lower()

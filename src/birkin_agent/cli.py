@@ -11,6 +11,7 @@ from .agents import add_agent, agent_rows, build_packet, run_agent, validate_age
 from .api import add_api_profile, api_rows, validate_api
 from .auth import add_auth_profile, auth_rows, run_auth_command, validate_auth
 from .chat import run_chat
+from .experience import current_experience, is_optional_lite_warning, set_experience_mode
 from .gateway import ROUTES, gateway_info, serve_gateway, validate_gateway
 from .improve import append_lesson, apply_improvement, propose_improvement
 from .learning import (
@@ -36,6 +37,7 @@ from .memory import (
 )
 from .models import add_model_profile, model_profile_map, model_rows, use_model_profile, validate_models
 from .morpheus import run_morpheus
+from .presets import is_lite
 from .reliability import budget_status, health_checks, reliability_rows, trace_rows
 from .scheduler import daemon_status, run_daemon, schedule_rows
 from .setup import setup_report, setup_rows
@@ -75,9 +77,11 @@ def build_parser() -> argparse.ArgumentParser:
     init.set_defaults(func=cmd_init)
 
     doctor = sub.add_parser("doctor", help="Check workspace health")
+    doctor.add_argument("--advanced", action="store_true", help="Include optional auth, API, gateway, and Telegram checks.")
     doctor.set_defaults(func=cmd_doctor)
 
     add_setup_parser(sub.add_parser("setup", help="Check Hermes-style setup readiness"))
+    add_mode_parser(sub.add_parser("mode", help="Switch between lite and full experience modes"))
     add_model_parser(sub.add_parser("model", help="Select and configure model profiles"))
     add_model_parser(sub.add_parser("models", help="Select and configure model profiles"))
     add_auth_parser(sub.add_parser("auth", help="Manage local CLI auth profiles"))
@@ -188,17 +192,31 @@ def build_parser() -> argparse.ArgumentParser:
 
 def add_setup_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--advanced", action="store_true")
     setup_sub = parser.add_subparsers(dest="setup_command")
     setup_check = setup_sub.add_parser("check")
     setup_check.add_argument("--json", action="store_true")
+    setup_check.add_argument("--advanced", action="store_true")
     setup_check.set_defaults(func=cmd_setup_check)
     setup_status = setup_sub.add_parser("status")
     setup_status.add_argument("--json", action="store_true")
+    setup_status.add_argument("--advanced", action="store_true")
     setup_status.set_defaults(func=cmd_setup_check)
     setup_wizard_parser = setup_sub.add_parser("wizard")
     add_wizard_args(setup_wizard_parser)
     setup_wizard_parser.set_defaults(func=cmd_setup_wizard)
     parser.set_defaults(func=cmd_setup_check)
+
+
+def add_mode_parser(parser: argparse.ArgumentParser) -> None:
+    mode_sub = parser.add_subparsers(required=True)
+    status = mode_sub.add_parser("status")
+    status.add_argument("--json", action="store_true")
+    status.set_defaults(func=cmd_mode_status)
+    use = mode_sub.add_parser("use")
+    use.add_argument("mode", choices=["lite", "full"])
+    use.add_argument("--json", action="store_true")
+    use.set_defaults(func=cmd_mode_use)
 
 
 def add_wizard_args(parser: argparse.ArgumentParser) -> None:
@@ -497,10 +515,20 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     warnings.extend(skill_warnings)
     warnings.extend(agent_warnings)
     warnings.extend(auth_warnings)
-    warnings.extend(api_warnings)
     warnings.extend(gateway_warnings)
     warnings.extend(memory_warnings)
-    warnings.extend(telegram_warnings)
+    optional_warnings = [("api", warning) for warning in api_warnings] + [
+        ("telegram", warning) for warning in telegram_warnings
+    ]
+    if getattr(args, "advanced", False) or not is_lite(workspace.config):
+        warnings.extend(api_warnings)
+        warnings.extend(telegram_warnings)
+    else:
+        warnings.extend(
+            warning
+            for source, warning in optional_warnings
+            if not is_optional_lite_warning(workspace.config, source, warning)
+        )
     for warning in warnings:
         print(f"warning: {warning}")
     for error in errors:
@@ -513,14 +541,44 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 
 def cmd_setup_check(args: argparse.Namespace) -> int:
     workspace = ws()
-    report = setup_report(workspace)
+    advanced = bool(getattr(args, "advanced", False))
+    report = setup_report(workspace, advanced=advanced)
     if args.json:
         print(json.dumps(report, indent=2, ensure_ascii=False))
     else:
-        print_table(setup_rows(workspace), ["step", "status", "detail", "command"])
+        print_table(setup_rows(workspace, advanced=advanced), ["step", "status", "detail", "command"])
         print()
         print_table(skill_config_rows(workspace), ["check", "status", "detail"])
     return 1 if report["status"] == "error" else 0
+
+
+def cmd_mode_status(args: argparse.Namespace) -> int:
+    payload = current_experience(ws())
+    if args.json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    else:
+        print_table(
+            [
+                {
+                    "mode": payload["mode"],
+                    "skills": payload["skills"],
+                    "enabledCount": "" if payload["enabledCount"] is None else str(payload["enabledCount"]),
+                    "advancedHidden": "yes" if payload["advancedHidden"] else "no",
+                }
+            ],
+            ["mode", "skills", "enabledCount", "advancedHidden"],
+        )
+    return 0
+
+
+def cmd_mode_use(args: argparse.Namespace) -> int:
+    payload = set_experience_mode(ws(), args.mode)
+    if args.json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    else:
+        print(f"mode={payload['mode']}")
+        print(f"skills={payload['skills']}")
+    return 0
 
 
 def cmd_setup_wizard(args: argparse.Namespace) -> int:
@@ -1217,8 +1275,11 @@ def cmd_chat_interactive(args: argparse.Namespace) -> int:
 
     print("Birkin Codex")
     print("Type a task. Safe mode works immediately and saves a run + memory.")
-    print("Commands: /help, /live, /setup, /dashboard, /skills, /model ID, /execute on|off, /exit")
-    print(f"agent={agent_id or 'chat'} model={model_name or 'default'} execute={'on' if execute else 'off'}")
+    print("Commands: /help, /live, /setup, /dashboard, /skills, /mode lite|full, /model ID, /execute on|off, /exit")
+    print(
+        f"agent={agent_id or 'chat'} model={model_name or 'default'} "
+        f"mode={current_experience(workspace)['mode']} execute={'on' if execute else 'off'}"
+    )
 
     while True:
         try:
@@ -1242,6 +1303,8 @@ def cmd_chat_interactive(args: argparse.Namespace) -> int:
             print("  /setup          show setup readiness")
             print("  /dashboard      show the local dashboard command")
             print("  /skills         show skill configuration checks")
+            print("  /mode lite      keep only the simple default surface")
+            print("  /mode full      enable all eligible skills and advanced controls")
             print("  /model ID       switch model profile for this chat")
             print("  /execute on     allow the selected runner to execute")
             print("  /execute off    packet-only safe mode")
@@ -1266,6 +1329,14 @@ def cmd_chat_interactive(args: argparse.Namespace) -> int:
             continue
         if lowered == "/skills":
             print_table(skill_config_rows(workspace), ["check", "status", "detail"])
+            continue
+        if lowered.startswith("/mode "):
+            value = message.split(maxsplit=1)[1].strip().lower()
+            if value not in {"lite", "full"}:
+                print("usage: /mode lite|full")
+                continue
+            payload = set_experience_mode(workspace, value)
+            print(f"mode={payload['mode']} skills={payload['skills']}")
             continue
         if lowered.startswith("/model "):
             model_name = message.split(maxsplit=1)[1].strip()

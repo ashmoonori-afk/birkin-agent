@@ -8,6 +8,7 @@ from .agents import agent_rows, validate_agents
 from .api import api_rows, validate_api
 from .approvals import approval_rows
 from .auth import auth_rows, validate_auth
+from .experience import current_experience, is_optional_lite_warning
 from .gateway import gateway_info, validate_gateway
 from .improve import collect_signals
 from .learning import learning_event_rows, learning_proposal_rows
@@ -15,6 +16,7 @@ from .ledger import ledger_rows, ledger_summary
 from .memory import memory_status, validate_memory
 from .models import model_rows, validate_models
 from .morpheus import morpheus_status
+from .presets import is_lite
 from .reliability import budget_status, delivery_rows, health_checks, reliability_rows, replay_rows, silent_failure_warnings, trace_rows
 from .scheduler import daemon_status, schedule_rows
 from .skills import discover_skills, skill_config_rows, skill_rows, skill_safety_summary, validate_skills
@@ -118,6 +120,7 @@ def list_jobs(workspace: Workspace, limit: int = 50) -> list[dict[str, Any]]:
 
 
 def dashboard_data(workspace: Workspace) -> dict[str, Any]:
+    experience = current_experience(workspace)
     doctor_errors, doctor_warnings = workspace.doctor()
     model_errors, model_warnings = validate_models(workspace)
     skill_errors, skill_warnings = validate_skills(workspace)
@@ -153,7 +156,7 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
         for value in values:
             warnings.append({"severity": severity, "source": source, "message": value})
     for skill in discover_skills(workspace):
-        if not skill.eligible and skill.reason:
+        if skill.enabled and not skill.eligible and skill.reason:
             warnings.append(
                 {
                     "severity": "warning",
@@ -199,6 +202,7 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
         )
     for item in budget.get("warnings") or []:
         warnings.append({"severity": "warning", "source": "budget", "message": str(item)})
+    warnings = visible_warnings(workspace, warnings)
     setup = setup_dashboard_report(
         workspace,
         doctor_errors,
@@ -226,6 +230,7 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
     )
     return {
         "root": str(workspace.root),
+        "experience": experience,
         "metrics": {
             "runningJobs": sum(1 for job in jobs if job["status"] == "running"),
             "completedJobs": sum(1 for job in jobs if job["status"] in {"ok", "packet-only"}),
@@ -302,6 +307,22 @@ def warning_rows(
     return rows
 
 
+def visible_warnings(workspace: Workspace, warnings: list[dict[str, str]]) -> list[dict[str, str]]:
+    if not is_lite(workspace.config):
+        return warnings
+    visible: list[dict[str, str]] = []
+    for warning in warnings:
+        if warning.get("severity") == "critical":
+            visible.append(warning)
+            continue
+        source = str(warning.get("source") or "")
+        message = str(warning.get("message") or "")
+        if is_optional_lite_warning(workspace.config, source, message):
+            continue
+        visible.append(warning)
+    return visible
+
+
 def setup_dashboard_report(
     workspace: Workspace,
     doctor_errors: list[str],
@@ -331,21 +352,33 @@ def setup_dashboard_report(
     approvals = approval_rows(workspace)
     morpheus = morpheus_status(workspace)
     schedules = schedule_rows(workspace)
+    lite = is_lite(workspace.config)
+    mode_detail = (
+        "Lite mode keeps the default setup focused on chat, memory, skills, and local runs."
+        if lite
+        else "Full mode shows the complete operator surface and all eligible skills."
+    )
     rows = [
+        setup_row("mode", [], [], mode_detail, "birkin-codex mode status"),
         setup_row("workspace", doctor_errors, doctor_warnings, "Workspace files, prompt files, and configured roots are present.", "birkin-codex doctor"),
         setup_row("models", model_errors, model_warnings, f"{len(models)} model profiles configured.", "birkin-codex model list"),
-        setup_row("auth", auth_errors, auth_warnings, f"{len(auth)} auth profiles configured.", "birkin-codex auth list"),
-        setup_row("api", api_errors, api_warnings, "OpenAI-compatible API profiles are configured.", "birkin-codex api list"),
-        setup_row("gateway", gateway_errors, gateway_warnings, "Gateway config is available.", "birkin-codex gateway status"),
         setup_row("memory", memory_errors, memory_warnings, "Obsidian-backed memory capture is configured.", "birkin-codex memory status"),
-        setup_row("telegram", telegram_errors, telegram_warnings, "Telegram onboarding can send notifications.", "birkin-codex telegram status"),
-        setup_row("approvals", [], [f"{len(approvals)} pending approval(s)"] if approvals else [], "Consequential actions are approval-gated.", "birkin-codex approvals list"),
-        setup_row("morpheus", [], [] if morpheus["enabled"] else ["Morpheus daemon is not enabled"], f"Morpheus configured for {morpheus['hour']:02d}:{morpheus['minute']:02d}.", "birkin-codex morpheus --dry-run"),
-        setup_row("schedules", [], [], f"{len(schedules)} approved schedule(s) stored.", "birkin-codex daemon status"),
         setup_row("skills", skill_errors, skill_warnings, f"{sum(1 for row in skills if row['enabled'] == 'yes')}/{len(skills)} skills are enabled and eligible.", "birkin-codex skills validate"),
         setup_row("agents", agent_errors, agent_warnings, "Agent roles and skill allowlists are configured.", "birkin-codex agents list"),
         setup_row("chat", [] if "chat" in agent_ids else ["chat agent is not configured"], [], "Chat agent and dashboard chat API are available.", "birkin-codex web --port 8765"),
     ]
+    if not lite:
+        rows.extend(
+            [
+                setup_row("auth", auth_errors, auth_warnings, f"{len(auth)} auth profiles configured.", "birkin-codex auth list"),
+                setup_row("api", api_errors, api_warnings, "OpenAI-compatible API profiles are configured.", "birkin-codex api list"),
+                setup_row("gateway", gateway_errors, gateway_warnings, "Gateway config is available.", "birkin-codex gateway status"),
+                setup_row("telegram", telegram_errors, telegram_warnings, "Telegram onboarding can send notifications.", "birkin-codex telegram status"),
+                setup_row("approvals", [], [f"{len(approvals)} pending approval(s)"] if approvals else [], "Consequential actions are approval-gated.", "birkin-codex approvals list"),
+                setup_row("morpheus", [], [] if morpheus["enabled"] else ["Morpheus daemon is not enabled"], f"Morpheus configured for {morpheus['hour']:02d}:{morpheus['minute']:02d}.", "birkin-codex morpheus --dry-run"),
+                setup_row("schedules", [], [], f"{len(schedules)} approved schedule(s) stored.", "birkin-codex daemon status"),
+            ]
+        )
     status = "error" if any(row["status"] == "error" for row in rows) else "warning" if any(
         row["status"] == "warning" for row in rows
     ) else "ok"

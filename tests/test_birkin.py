@@ -19,6 +19,7 @@ from birkin_agent.auth import auth_rows, run_auth_command, validate_auth
 from birkin_agent.chat import run_chat
 from birkin_agent.cli import main as cli_main
 from birkin_agent.dashboard import dashboard_data
+from birkin_agent.experience import current_experience, set_experience_mode
 from birkin_agent.gateway import GatewayHandler
 from birkin_agent.improve import append_lesson, apply_improvement, propose_improvement
 from birkin_agent.learning import (
@@ -65,6 +66,9 @@ class WorkspaceTest(unittest.TestCase):
         errors, warnings = validate_skills(workspace)
         self.assertEqual(errors, [])
         self.assertIsInstance(warnings, list)
+        self.assertEqual(workspace.config["experience"]["mode"], "lite")
+        self.assertIsInstance(workspace.config["skills"]["enabled"], list)
+        self.assertIn("taskflow", workspace.config["skills"]["enabled"])
         names = {skill.name for skill in discover_skills(workspace)}
         self.assertIn("self-improvement", names)
         self.assertIn("taskflow", names)
@@ -348,13 +352,32 @@ class WorkspaceTest(unittest.TestCase):
         report = setup_report(workspace)
         self.assertIn(report["status"], {"ok", "warning"})
         checks = {row["step"]: row for row in report["checks"]}
+        self.assertIn("mode", checks)
         self.assertIn("workspace", checks)
         self.assertIn("chat", checks)
+        self.assertNotIn("api", checks)
+        self.assertNotIn("telegram", checks)
+        advanced = {row["step"]: row for row in setup_report(workspace, advanced=True)["checks"]}
+        self.assertIn("api", advanced)
+        self.assertIn("telegram", advanced)
         config = {row["check"]: row for row in skill_config_rows(workspace)}
         self.assertEqual(config["catalog"]["status"], "ok")
         self.assertIn("90 Hermes", config["reflections"]["detail"])
         self.assertEqual(config["upstream-mirror"]["status"], "ok")
         self.assertIn("147 mirrored", config["upstream-mirror"]["detail"])
+
+    def test_experience_mode_switches_skill_surface(self) -> None:
+        workspace = self.make_workspace()
+        self.assertEqual(current_experience(workspace)["mode"], "lite")
+        lite_enabled = workspace.config["skills"]["enabled"]
+        self.assertIsInstance(lite_enabled, list)
+        self.assertLess(len(lite_enabled), len(discover_skills(workspace)))
+        full = set_experience_mode(workspace, "full")
+        self.assertEqual(full["mode"], "full")
+        self.assertIsNone(workspace.config["skills"]["enabled"])
+        lite = set_experience_mode(workspace, "lite")
+        self.assertEqual(lite["mode"], "lite")
+        self.assertIsInstance(workspace.config["skills"]["enabled"], list)
 
     def test_chat_packet_writes_record(self) -> None:
         workspace = self.make_workspace()
@@ -632,6 +655,7 @@ class WorkspaceTest(unittest.TestCase):
         workspace = self.make_workspace()
         run_agent(workspace, "planner", "Plan a release")
         data = dashboard_data(workspace)
+        self.assertEqual(data["experience"]["mode"], "lite")
         self.assertGreaterEqual(data["metrics"]["completedJobs"], 1)
         self.assertGreaterEqual(data["usage"]["estimatedTokens"], 1)
         self.assertIn("jobs", data)
@@ -655,6 +679,9 @@ class WorkspaceTest(unittest.TestCase):
         self.assertIn("health", data)
         self.assertIn("budget", data)
         self.assertIn("skillSafety", data)
+        warning_sources = {row["source"] for row in data["warnings"]}
+        self.assertNotIn("api", warning_sources)
+        self.assertNotIn("telegram", warning_sources)
         self.assertGreaterEqual(data["metrics"]["modelsTotal"], 4)
         self.assertGreaterEqual(data["metrics"]["authProfiles"], 2)
         self.assertGreaterEqual(data["metrics"]["apiProfiles"], 2)
@@ -716,6 +743,7 @@ class WorkspaceTest(unittest.TestCase):
         self.assertGreaterEqual(len(status["skills"]), 1)
         self.assertGreaterEqual(len(status["agents"]), 1)
         self.assertIn("metrics", status)
+        self.assertIn("experience", status)
         self.assertIn("jobs", status)
         self.assertIn("models", status)
         self.assertIn("auth", status)

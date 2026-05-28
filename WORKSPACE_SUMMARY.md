@@ -4,11 +4,12 @@ Last updated: 2026-05-28
 
 ## Purpose
 
-Birkin Codex is a lightweight Hermes-style Python agent workspace. It provides
+Birkin Codex is a lite-first Hermes-style Python agent workspace. It provides
 `SKILL.md` skill management, scoped subagent prompt packets, local CLI/API model
 execution, an OpenAI-compatible tool-calling runtime, approval-gated consequential
 actions, semantic Obsidian memory, a usage ledger, Telegram onboarding/inbound polling,
-Morpheus self-improvement, a machine-facing gateway, and a local SaaS-style dashboard.
+Morpheus self-improvement, a machine-facing gateway, and a local dashboard with advanced
+operator controls hidden by default.
 
 ## Current State
 
@@ -16,6 +17,10 @@ Morpheus self-improvement, a machine-facing gateway, and a local SaaS-style dash
 - Primary CLI entrypoint: `birkin-codex` via editable install. With no arguments it opens
   the Hermes-style interactive chat CLI.
 - Compatibility CLI alias: `birkin`.
+- Default experience: `lite`, with 15 core skills enabled and optional API/Telegram
+  warnings hidden from the default `doctor`, setup, and dashboard surface. `birkin-codex
+  mode use full` restores all eligible discovered skills and shows the full operator
+  surface; `birkin-codex doctor --advanced` shows optional integration warnings.
 - One-line installers: `scripts/install.sh` for macOS/Linux/WSL and
   `scripts/install.ps1` for Windows PowerShell. Both install from
   `https://github.com/ashmoonori-afk/birkin-agent` with `uv`, `pipx`, or
@@ -61,9 +66,11 @@ Morpheus self-improvement, a machine-facing gateway, and a local SaaS-style dash
   daemon, Morpheus, chat, and run routes. Gateway token behavior remains localhost/token
   based.
 - Web UI: `birkin-codex web --port 8765`, showing jobs, summaries, status, usage,
-  warnings, models, auth, API, gateway, memory, ledger, Telegram, approvals, learning,
-  reliability, Morpheus, schedules, skills, agents, setup, and chat. The learning tab can
-  list, show, approve, reject, and rollback learning records through the local API.
+  warnings, memory, skills, setup, and chat first. Models, auth, API, gateway, ledger,
+  Telegram, approvals, learning, reliability, Morpheus, schedules, agents, and daemon
+  controls remain available behind the `Show Advanced` toggle in lite mode. The learning
+  tab can list, show, approve, reject, and rollback learning records through the local
+  API.
 - Skill safety: `birkin-codex skills safety` lists permission manifest, version,
   author/source, computed hash, tests, last verified, immutable status, and path.
   `skills config` now includes registry consistency and skill-safety rows.
@@ -105,10 +112,15 @@ Kept different:
 - `py -m pip install -e .`: passed. The Python script directory is not on this shell's
   PATH, so CLI smoke commands prepended the installed Scripts directory for this session.
 - `py -m compileall -q src tests tools`: passed.
-- `py -m unittest discover -s tests`: 30 tests passed.
+- `py -m unittest discover -s tests`: 31 tests passed.
 - `git diff --check -- . ':!skills/upstream'`: passed.
-- `birkin-codex doctor`: `ok` with expected warnings for missing `OPENAI_API_KEY` and
-  Telegram not enabled.
+- `birkin-codex doctor`: `ok` in lite mode.
+- `birkin-codex doctor --advanced`: `ok` with expected warnings for missing
+  `OPENAI_API_KEY` and Telegram not enabled.
+- `birkin-codex setup --json`: passed with lite checks only.
+- `birkin-codex setup --advanced --json`: passed with expected optional integration
+  warnings.
+- `birkin-codex mode status --json`: passed and reported `mode=lite`, `enabledCount=15`.
 - `birkin-codex skills validate`: `ok`.
 - `birkin-codex skills config --json`: passed; upstream mirror check reports 147
   mirrored upstream skills and 0 missing directories. Registry consistency and
@@ -124,10 +136,14 @@ Kept different:
 - `birkin-codex gateway status --json`: passed and includes learning/reliability routes.
 - Dashboard smoke on `127.0.0.1:8768`: `/api/status` included learning proposals,
   reliability log, traces, replay records, health, and budget fields.
+- Dashboard smoke on `127.0.0.1:8771` with headless Edge: title rendered as `Birkin
+  Agent`, advanced tabs were hidden in lite mode, visible after `Show Advanced`, and the
+  warning metric was `0`.
 - Gateway smoke on `127.0.0.1:8772`: `/health`, `/api/reliability`, and `/api/learning`
   passed, including reliability replay records.
 - Code review note: `reviews/2026-05-28-verified-learning-reliability-review.md`.
-- Latest code review note: `reviews/2026-05-28-installer-chat-ux-review.md`.
+- Installer/chat UX review note: `reviews/2026-05-28-installer-chat-ux-review.md`.
+- Latest code review note: `reviews/2026-05-28-lite-mode-review.md`.
 
 ## Git Target
 

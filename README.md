@@ -26,9 +26,9 @@ inspectable, and portable across Windows, macOS, and Linux.
 
 | Area | Birkin behavior |
 | --- | --- |
-| CLI | Runs as `birkin-codex`; no arguments open the Hermes-style interactive chat CLI. |
-| Dashboard | Serves a SaaS-style control plane at `http://127.0.0.1:8765`. |
-| Skills | Indexes `SKILL.md` folders with precedence, gating, registry checks, safety metadata, and immutable upstream mirrors. |
+| CLI | Runs as `birkin-codex`; no arguments open the lite Hermes-style interactive chat CLI. |
+| Dashboard | Serves a chat-first dashboard at `http://127.0.0.1:8765`, with advanced operations hidden by default. |
+| Skills | Starts with 15 core skills enabled, while still indexing `SKILL.md` folders with precedence, gating, registry checks, safety metadata, and immutable upstream mirrors. |
 | Hermes/OpenClaw mirrors | Mirrors 90 Hermes skill directories and 57 OpenClaw skill directories, with 147 mirrored upstream skills and 0 missing directories. |
 | Model selection | Supports packet-only, local CLI, OpenAI-compatible API, and tool-agent profiles without code changes. |
 | Auth/API/Gateway | Delegates local CLI OAuth to external tools, supports API-key profiles, and exposes a localhost/token-gated gateway. |
@@ -61,6 +61,20 @@ First run opens the chat CLI. It starts in safe packet mode, so it can create a
 run record and memory note before any API key or local model is configured. Use
 `/live` inside chat when you want Birkin to switch to a connected local CLI or API
 model.
+
+### Lite by Default
+
+Birkin starts in `lite` mode. The default surface is chat, setup, jobs, memory, skills,
+and warnings, with a small core skill allowlist. The full Hermes/OpenClaw mirrored skill
+catalog and operator controls remain installed, but they are not the first-run
+experience.
+
+```sh
+birkin-codex mode status
+birkin-codex mode use full
+birkin-codex mode use lite
+birkin-codex doctor --advanced
+```
 
 ### macOS and Linux
 
@@ -96,6 +110,7 @@ Everyday loop:
 birkin-codex
 birkin-codex setup wizard
 birkin-codex chat --message "Summarize this workspace" --model packet
+birkin-codex mode status
 birkin-codex model list
 birkin-codex model use codex-local
 birkin-codex memory search "model preference" --type preference --scope project
@@ -105,6 +120,7 @@ Operations and governance:
 
 ```sh
 birkin-codex doctor
+birkin-codex doctor --advanced
 birkin-codex auth list
 birkin-codex api list
 birkin-codex gateway status
@@ -126,6 +142,8 @@ birkin-codex morpheus --dry-run
 ## Implemented
 
 - `birkin-codex` Python/pip CLI with Windows PowerShell and macOS/Linux shell scripts.
+- Lite default experience with `birkin-codex mode use full|lite`, a 15-skill core
+  allowlist, quiet setup/doctor checks, and advanced dashboard tabs hidden until needed.
 - Dashboard with jobs, summaries, status, usage, warnings, approvals, learning proposals,
   reliability traces, health, budget, memory, ledger, gateway, Telegram, Morpheus, skills,
   models, API profiles, auth profiles, agents, and chat.
@@ -166,6 +184,8 @@ birkin-codex morpheus --dry-run
   local CLI and dashboard.
 - Upstream-aware skills: Hermes/OpenClaw mirrors remain exact capability references while
   generated changes happen through custom skills or proposals.
+- Lower-friction first run: safe packet chat, lite skill selection, and optional advanced
+  controls make the first success path smaller than the full control plane.
 
 ## Tradeoffs
 
@@ -173,6 +193,8 @@ birkin-codex morpheus --dry-run
   backends, Honcho user modeling, or subscription proxy behavior.
 - Mirrored upstream skills are intentionally immutable; modifying their behavior requires
   a proposal or custom fork.
+- Lite mode hides advanced controls but does not remove them; full mode is still needed
+  for gateway, Telegram, approval, learning, and reliability operator work.
 - Cost accounting captures token fields and budget warnings, but provider-specific price
   tables are still a future layer.
 - Gateway auth is intentionally small; use localhost binding or the token gate for local
@@ -188,6 +210,7 @@ python -m pip install -e .
 python -m unittest discover -s tests
 python -m compileall -q src tests tools
 birkin-codex doctor
+birkin-codex mode status
 birkin-codex skills validate
 birkin-codex skills config
 birkin-codex skills safety

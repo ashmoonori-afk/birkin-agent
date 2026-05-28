@@ -7,9 +7,10 @@ Hermes Agent as the reference model for `SKILL.md` driven progressive disclosure
 agent-managed skill evolution, and OpenClaw as the reference model for skill precedence,
 gating, operator safety, and broad bundled skill coverage.
 
-Birkin is now positioned as a verified-learning, reliability-first agent OS: memory and
-skill changes are evidence-gated, consequential actions are approval-first, and runtime
-health is visible through a local control plane.
+Birkin is now positioned as a lite-first verified-learning agent workspace: first-run
+chat works in packet mode, advanced operator controls are available when needed, memory
+and skill changes are evidence-gated, consequential actions are approval-first, and
+runtime health is visible through the local dashboard.
 
 Birkin is not a fork of either project. It does not vendor their code or claim runtime
 compatibility with their private internals.
@@ -34,7 +35,10 @@ compatibility with their private internals.
 - `src/birkin_agent/chat.py`: builds chat-mode tasks and writes normal run records
   through the selected agent and model profile.
 - `src/birkin_agent/setup.py`: produces Hermes-style setup checks across workspace,
-  models, auth, API, gateway, approvals, Morpheus, skills, agents, and chat.
+  models, memory, skills, agents, and chat, with an advanced option for auth, API,
+  gateway, approvals, Morpheus, Telegram, schedules, and ledger status.
+- `src/birkin_agent/presets.py` and `src/birkin_agent/experience.py`: define the lite
+  skill allowlist and the `lite`/`full` experience switch.
 - `src/birkin_agent/memory.py`: writes and recalls typed, scoped, versioned
   Obsidian-compatible markdown memory with evidence, confidence, TTL, append-only
   history, negative-memory revalidation, and wikilinks.
@@ -56,10 +60,10 @@ compatibility with their private internals.
   skill improvement proposals, and applies approved patches.
 - `src/birkin_agent/dashboard.py`: turns run records, usage, warnings, approvals,
   learning proposals, reliability traces, health, budget, agents, and skills into
-  dashboard API data.
+  dashboard API data, filtering optional integration warnings in lite mode.
 - `src/birkin_agent/web.py`: serves a local operator dashboard with running jobs,
-  result summaries, status, usage, warnings, approvals, learning, reliability, skills,
-  agents, chat, and job generation.
+  result summaries, status, usage, warnings, skills, memory, chat, job generation, and
+  advanced sections for approvals, learning, reliability, agents, and integrations.
 - `skills/`: bundled starter skill set covering core, tools, development, creative,
   integrations, and product workflows.
 - `skills/hermes-reflections/`: one Birkin skill per Hermes bundled upstream skill
@@ -82,6 +86,9 @@ The first skill with a given `name` wins. Later duplicates are reported as shado
 
 - Default runner is `dry-run`.
 - Default model profile is `packet`, which never calls an external model.
+- Default experience mode is `lite`, which enables a 15-skill core allowlist and hides
+  advanced dashboard tabs. `birkin-codex mode use full` restores all eligible skills and
+  the full operator surface.
 - Real CLI or API execution requires an explicit model profile in `birkin.json`
   and `--execute` on the run command.
 - The `api-agent` runner can call structured tools. Consequential tools are

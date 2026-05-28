@@ -2,7 +2,7 @@
 
 Scope date: 2026-05-28.
 
-The Birkin Web UI is an operator dashboard, not a landing page. It is served by the
+The Birkin Web UI is a chat-first dashboard, not a landing page. It is served by the
 Python standard library:
 
 ```sh
@@ -13,23 +13,25 @@ Open `http://127.0.0.1:8765`.
 
 ## First Screen
 
+In lite mode, the navigation emphasizes Dashboard, Chat, Setup, Jobs, Memory, Skills,
+and Warnings. Advanced sections are still available behind the `Show Advanced` toggle,
+or permanently by switching the workspace to full mode with `birkin-codex mode use full`.
+
 - Workspace summary.
 - Estimated usage from job prompt packets.
 - Running jobs.
 - Completed and failed job counts.
 - Recent job results with status, agent, model, task, result summary, usage, and timestamp.
 - Model profile count and a model selector for new jobs.
-- Auth, API, and gateway tabs for integration status.
-- Memory, ledger, and Telegram tabs for onboarding and durable status.
-- Approval, Morpheus, daemon, and schedule status.
-- Verified-learning proposals and recent learning events.
-- Reliability health, budget, trace timeline, delivery records, replay records, and
-  reliability log.
+- Memory status and durable notes.
 - Setup and skill config tabs for readiness verification.
 - Chat tab for message-oriented agent runs.
 - Warnings in a separate panel.
 - A job creation form that writes a dry-run record by default and can explicitly
   execute the selected runner when the execute checkbox is enabled.
+
+Advanced mode adds auth, API, gateway, ledger, Telegram, approvals, verified learning,
+reliability, Morpheus, schedules, daemon status, and agent administration sections.
 
 ## Data Source
 
@@ -52,15 +54,18 @@ The dashboard reads:
 
 ## Warning Model
 
-Warnings are separate from job results. They include workspace doctor warnings, skill
-validation warnings, model profile warnings, auth/API/gateway warnings, pending
-approvals, pending learning proposals, budget warnings, delivery failures, agent
-allowlist warnings, and gated skills such as missing environment variables or missing
-config.
+Warnings are separate from job results. In lite mode, optional auth/API/gateway/Telegram
+warnings are hidden so first-run success is not blocked by integrations the user has not
+chosen yet. Full mode and `birkin-codex doctor --advanced` include those warnings.
 
-## Control Plane Sections
+Visible warnings include workspace doctor warnings, skill validation warnings, model
+profile warnings, pending approvals, pending learning proposals, budget warnings,
+delivery failures, agent allowlist warnings, and enabled gated skills such as missing
+environment variables or missing config.
 
-The dashboard is intended to answer operational questions quickly:
+## Advanced Sections
+
+The advanced sections answer operational questions quickly:
 
 - What is running now?
 - What did the latest job return?

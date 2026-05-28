@@ -1,5 +1,8 @@
 {
   "version": 1,
+  "experience": {
+    "mode": "lite"
+  },
   "workspace": {
     "name": "birkin_codex",
     "summary": "WORKSPACE_SUMMARY.md",
@@ -18,7 +21,23 @@
     ],
     "watch": true,
     "watchDebounceMs": 250,
-    "enabled": null,
+    "enabled": [
+      "memory-recall",
+      "taskflow",
+      "documentation",
+      "code-review",
+      "filesystem",
+      "shell-runtime",
+      "skill-authoring",
+      "skill-security-audit",
+      "data-analysis",
+      "web-research",
+      "browser-automation",
+      "scheduling",
+      "messaging-gateway",
+      "subagent-orchestration",
+      "self-improvement"
+    ],
     "disabled": [],
     "allowSymlinkTargets": []
   },

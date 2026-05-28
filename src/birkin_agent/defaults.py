@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from .presets import LITE_SKILLS
+
 DEFAULT_CONFIG = {
     "version": 1,
+    "experience": {
+        "mode": "lite",
+    },
     "workspace": {
         "name": "birkin_codex",
         "summary": "WORKSPACE_SUMMARY.md",
@@ -11,7 +16,7 @@ DEFAULT_CONFIG = {
         "roots": ["skills", ".agents/skills", "managed-skills", "bundled-skills"],
         "watch": True,
         "watchDebounceMs": 250,
-        "enabled": None,
+        "enabled": list(LITE_SKILLS),
         "disabled": [],
         "allowSymlinkTargets": [],
     },

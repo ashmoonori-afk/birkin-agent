@@ -18,7 +18,7 @@ INDEX_HTML = """<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Birkin Agent Dashboard</title>
+  <title>Birkin Agent</title>
   <style>
     :root {
       color-scheme: light;
@@ -79,6 +79,14 @@ INDEX_HTML = """<!doctype html>
       cursor: pointer;
     }
     nav button.active { background: var(--accent-soft); color: #084b83; font-weight: 700; }
+    body.lite:not(.show-advanced) nav button[data-advanced="true"] { display: none; }
+    #advanced-toggle {
+      margin-top: 10px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+      text-align: center;
+    }
     .content { padding: 18px; min-width: 0; }
     section { display: none; }
     section.active { display: block; }
@@ -228,7 +236,7 @@ INDEX_HTML = """<!doctype html>
 </head>
 <body>
   <header>
-    <h1>Birkin Agent Dashboard</h1>
+    <h1>Birkin Agent</h1>
     <span id="root" class="root"></span>
   </header>
   <main>
@@ -237,20 +245,21 @@ INDEX_HTML = """<!doctype html>
       <button data-tab="chat">Chat</button>
       <button data-tab="setup">Setup</button>
       <button data-tab="jobs">Jobs</button>
-      <button data-tab="models">Models</button>
-      <button data-tab="auth">Auth</button>
-      <button data-tab="api">API</button>
-      <button data-tab="gateway">Gateway</button>
+      <button data-tab="models" data-advanced="true">Models</button>
+      <button data-tab="auth" data-advanced="true">Auth</button>
+      <button data-tab="api" data-advanced="true">API</button>
+      <button data-tab="gateway" data-advanced="true">Gateway</button>
       <button data-tab="memory">Memory</button>
-      <button data-tab="ledger">Ledger</button>
-      <button data-tab="telegram">Telegram</button>
-      <button data-tab="approvals">Approvals</button>
-      <button data-tab="learning">Learning</button>
-      <button data-tab="reliability">Reliability</button>
-      <button data-tab="morpheus">Morpheus</button>
+      <button data-tab="ledger" data-advanced="true">Ledger</button>
+      <button data-tab="telegram" data-advanced="true">Telegram</button>
+      <button data-tab="approvals" data-advanced="true">Approvals</button>
+      <button data-tab="learning" data-advanced="true">Learning</button>
+      <button data-tab="reliability" data-advanced="true">Reliability</button>
+      <button data-tab="morpheus" data-advanced="true">Morpheus</button>
       <button data-tab="skills">Skills</button>
-      <button data-tab="agents">Agents</button>
+      <button data-tab="agents" data-advanced="true">Agents</button>
       <button data-tab="warnings">Warnings</button>
+      <button id="advanced-toggle" type="button">Show Advanced</button>
     </nav>
     <div class="content">
       <section id="dashboard" class="active">
@@ -489,7 +498,12 @@ INDEX_HTML = """<!doctype html>
       const res = await fetch("/api/status");
       state.data = await res.json();
       const d = state.data;
-      document.querySelector("#root").textContent = d.root;
+      const isLite = (d.experience?.mode || "lite") === "lite";
+      document.body.classList.toggle("lite", isLite);
+      const advancedToggle = document.querySelector("#advanced-toggle");
+      advancedToggle.style.display = isLite ? "" : "none";
+      advancedToggle.textContent = document.body.classList.contains("show-advanced") ? "Hide Advanced" : "Show Advanced";
+      document.querySelector("#root").textContent = `${d.root} - ${d.experience?.mode || "lite"}`;
       document.querySelector("#summary").textContent = d.summary;
       document.querySelector("#metric-running").textContent = d.metrics.runningJobs;
       document.querySelector("#metric-completed").textContent = d.metrics.completedJobs;
@@ -663,12 +677,17 @@ INDEX_HTML = """<!doctype html>
       }));
       renderChat();
     }
-    document.querySelectorAll("nav button").forEach(button => {
+    document.querySelectorAll("nav button[data-tab]").forEach(button => {
       button.addEventListener("click", () => {
-        document.querySelectorAll("nav button, section").forEach(el => el.classList.remove("active"));
+        document.querySelectorAll("nav button[data-tab], section").forEach(el => el.classList.remove("active"));
         button.classList.add("active");
         document.querySelector("#" + button.dataset.tab).classList.add("active");
       });
+    });
+    document.querySelector("#advanced-toggle").addEventListener("click", () => {
+      document.body.classList.toggle("show-advanced");
+      document.querySelector("#advanced-toggle").textContent =
+        document.body.classList.contains("show-advanced") ? "Hide Advanced" : "Show Advanced";
     });
     document.querySelector("#build").addEventListener("click", async () => {
       const res = await fetch("/api/run", {

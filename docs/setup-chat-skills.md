@@ -36,22 +36,41 @@ birkin-codex setup check
 birkin-codex setup wizard
 ```
 
-The setup report checks:
+The default setup report runs in lite mode. It checks:
 
 - Workspace files and prompt files.
 - Model profiles.
-- Local CLI auth profiles.
-- OpenAI-compatible API profiles.
-- Gateway config.
 - Obsidian memory.
-- Telegram onboarding.
-- Usage ledger.
 - Skill validation.
 - Agent allowlists.
 - Chat agent availability.
 
-`OPENAI_API_KEY` is reported as a warning when the default OpenAI-compatible API profile
-is configured but the environment variable is not set.
+Advanced setup checks are available when the user is ready to connect integrations:
+
+```sh
+birkin-codex setup --advanced
+birkin-codex doctor --advanced
+birkin-codex mode use full
+```
+
+Advanced checks add local CLI auth profiles, OpenAI-compatible API profiles, gateway
+config, Telegram onboarding, approval queues, Morpheus, schedules, and usage ledger
+status. `OPENAI_API_KEY` is reported as a warning only in advanced/full checks when the
+default OpenAI-compatible API profile is configured but the environment variable is not
+set.
+
+## Experience Mode
+
+Birkin starts in `lite` mode:
+
+```sh
+birkin-codex mode status
+birkin-codex mode use full
+birkin-codex mode use lite
+```
+
+`lite` mode keeps a 15-skill core allowlist and hides advanced dashboard tabs by default.
+`full` mode enables all eligible discovered skills and shows the full operator surface.
 
 ## Chat
 
@@ -73,6 +92,8 @@ Interactive commands:
 - `/setup` shows readiness checks.
 - `/dashboard` shows the local dashboard command and URL.
 - `/skills` shows skill configuration checks.
+- `/mode lite` switches back to the small default surface.
+- `/mode full` enables all eligible skills and advanced controls.
 - `/model ID` switches the model profile for the current chat.
 - `/execute on` allows the selected runner to execute.
 - `/execute off` returns to packet-only safe mode.

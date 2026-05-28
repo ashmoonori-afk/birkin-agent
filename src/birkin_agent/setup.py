@@ -12,6 +12,7 @@ from .ledger import ledger_summary
 from .memory import memory_status, validate_memory
 from .models import model_rows, validate_models
 from .morpheus import morpheus_status
+from .presets import is_lite
 from .scheduler import schedule_rows
 from .skills import skill_config_rows, skill_rows, validate_skills
 from .telegram import telegram_status, validate_telegram
@@ -26,8 +27,22 @@ class SetupCheck:
     command: str
 
 
-def setup_checks(workspace: Workspace) -> list[SetupCheck]:
+def setup_checks(workspace: Workspace, advanced: bool = False) -> list[SetupCheck]:
     rows: list[SetupCheck] = []
+    lite = is_lite(workspace.config) and not advanced
+    mode_detail = (
+        "Lite mode keeps the default setup focused on chat, memory, skills, and local runs."
+        if lite
+        else "Full setup includes auth, API, gateway, Telegram, approvals, Morpheus, schedules, and ledger status."
+    )
+    add_check(
+        rows,
+        "mode",
+        [],
+        [],
+        mode_detail,
+        "birkin-codex mode status",
+    )
     workspace_errors, workspace_warnings = workspace.doctor()
     add_check(
         rows,
@@ -46,6 +61,51 @@ def setup_checks(workspace: Workspace) -> list[SetupCheck]:
         f"{len(model_rows(workspace))} model profiles configured.",
         "birkin-codex model list",
     )
+    memory_errors, memory_warnings = validate_memory(workspace)
+    memory = memory_status(workspace)
+    add_check(
+        rows,
+        "memory",
+        memory_errors,
+        memory_warnings,
+        f"Obsidian memory vault: {memory['vaultPath']}.",
+        "birkin-codex memory status",
+    )
+    skill_errors, skill_warnings = validate_skills(workspace)
+    skills = skill_rows(workspace)
+    enabled = sum(1 for row in skills if row["enabled"] == "yes")
+    add_check(
+        rows,
+        "skills",
+        skill_errors,
+        skill_warnings,
+        f"{enabled}/{len(skills)} skills are enabled and eligible.",
+        "birkin-codex skills validate",
+    )
+    agent_errors, agent_warnings = validate_agents(workspace)
+    add_check(
+        rows,
+        "agents",
+        agent_errors,
+        agent_warnings,
+        "Agent roles and skill allowlists are configured.",
+        "birkin-codex agents list",
+    )
+    chat_errors = []
+    agent_ids = {str(raw.get("id") or "") for raw in workspace.config.get("agents", {}).get("list", [])}
+    if "chat" not in agent_ids:
+        chat_errors.append("chat agent is not configured")
+    add_check(
+        rows,
+        "chat",
+        chat_errors,
+        [],
+        "Chat agent and dashboard chat API are available.",
+        "birkin-codex web --port 8765",
+    )
+    if lite:
+        return rows
+
     auth_errors, auth_warnings = validate_auth(workspace)
     auth = auth_rows(workspace)
     auth_detail = f"{len(auth)} auth profiles configured."
@@ -70,16 +130,6 @@ def setup_checks(workspace: Workspace) -> list[SetupCheck]:
         gateway_warnings,
         f"Gateway configured for {info['host']}:{info['port']}.",
         "birkin-codex gateway status",
-    )
-    memory_errors, memory_warnings = validate_memory(workspace)
-    memory = memory_status(workspace)
-    add_check(
-        rows,
-        "memory",
-        memory_errors,
-        memory_warnings,
-        f"Obsidian memory vault: {memory['vaultPath']}.",
-        "birkin-codex memory status",
     )
     telegram_errors, telegram_warnings = validate_telegram(workspace)
     telegram = telegram_status(workspace)
@@ -127,38 +177,6 @@ def setup_checks(workspace: Workspace) -> list[SetupCheck]:
         f"{len(schedules)} approved schedule(s) stored.",
         "birkin-codex daemon status",
     )
-    skill_errors, skill_warnings = validate_skills(workspace)
-    skills = skill_rows(workspace)
-    enabled = sum(1 for row in skills if row["enabled"] == "yes")
-    add_check(
-        rows,
-        "skills",
-        skill_errors,
-        skill_warnings,
-        f"{enabled}/{len(skills)} skills are enabled and eligible.",
-        "birkin-codex skills validate",
-    )
-    agent_errors, agent_warnings = validate_agents(workspace)
-    add_check(
-        rows,
-        "agents",
-        agent_errors,
-        agent_warnings,
-        "Agent roles and skill allowlists are configured.",
-        "birkin-codex agents list",
-    )
-    chat_errors = []
-    agent_ids = {str(raw.get("id") or "") for raw in workspace.config.get("agents", {}).get("list", [])}
-    if "chat" not in agent_ids:
-        chat_errors.append("chat agent is not configured")
-    add_check(
-        rows,
-        "chat",
-        chat_errors,
-        [],
-        "Chat agent and dashboard chat API are available.",
-        "birkin-codex web --port 8765",
-    )
     return rows
 
 
@@ -178,7 +196,7 @@ def add_check(
     rows.append(SetupCheck(step, status, detail, command))
 
 
-def setup_rows(workspace: Workspace) -> list[dict[str, str]]:
+def setup_rows(workspace: Workspace, advanced: bool = False) -> list[dict[str, str]]:
     return [
         {
             "step": item.step,
@@ -186,12 +204,12 @@ def setup_rows(workspace: Workspace) -> list[dict[str, str]]:
             "detail": item.detail,
             "command": item.command,
         }
-        for item in setup_checks(workspace)
+        for item in setup_checks(workspace, advanced=advanced)
     ]
 
 
-def setup_report(workspace: Workspace) -> dict[str, Any]:
-    rows = setup_rows(workspace)
+def setup_report(workspace: Workspace, advanced: bool = False) -> dict[str, Any]:
+    rows = setup_rows(workspace, advanced=advanced)
     status = "error" if any(row["status"] == "error" for row in rows) else "warning" if any(
         row["status"] == "warning" for row in rows
     ) else "ok"

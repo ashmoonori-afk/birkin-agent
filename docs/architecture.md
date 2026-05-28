@@ -7,6 +7,10 @@ Hermes Agent as the reference model for `SKILL.md` driven progressive disclosure
 agent-managed skill evolution, and OpenClaw as the reference model for skill precedence,
 gating, operator safety, and broad bundled skill coverage.
 
+Birkin is now positioned as a verified-learning, reliability-first agent OS: memory and
+skill changes are evidence-gated, consequential actions are approval-first, and runtime
+health is visible through a local control plane.
+
 Birkin is not a fork of either project. It does not vendor their code or claim runtime
 compatibility with their private internals.
 
@@ -25,14 +29,19 @@ compatibility with their private internals.
 - `src/birkin_agent/runtime.py`: runs the OpenAI-compatible tool-calling agent loop
   used by the `api-agent` model profile.
 - `src/birkin_agent/approvals.py`: queues consequential shell, external web,
-  Telegram, schedule, and file-write actions for explicit user approval.
+  Telegram, schedule, file-write, and file-delete actions with risk tier, evidence,
+  resources, dry-run preview, and rollback hint.
 - `src/birkin_agent/chat.py`: builds chat-mode tasks and writes normal run records
   through the selected agent and model profile.
 - `src/birkin_agent/setup.py`: produces Hermes-style setup checks across workspace,
   models, auth, API, gateway, approvals, Morpheus, skills, agents, and chat.
-- `src/birkin_agent/memory.py`: writes and recalls Obsidian-compatible markdown memory
-  for conversations, feedback, errors, and run summaries, including semantic
-  frontmatter and Obsidian wikilinks.
+- `src/birkin_agent/memory.py`: writes and recalls typed, scoped, versioned
+  Obsidian-compatible markdown memory with evidence, confidence, TTL, append-only
+  history, negative-memory revalidation, and wikilinks.
+- `src/birkin_agent/learning.py`: records verified-learning events and proposal-mode
+  changes with list, show, approve, reject, and rollback operations.
+- `src/birkin_agent/reliability.py`: records trace, delivery, health, budget, and
+  silent-failure signals for the dashboard, CLI, and gateway.
 - `src/birkin_agent/ledger.py`: appends one JSONL ledger entry per run and aggregates
   estimated/provider usage.
 - `src/birkin_agent/telegram.py`: stores Telegram onboarding config and sends bot test
@@ -45,10 +54,12 @@ compatibility with their private internals.
   health, status, model, auth, API, setup, skill config, chat, and run operations.
 - `src/birkin_agent/improve.py`: records lessons, gathers signals, creates pending
   skill improvement proposals, and applies approved patches.
-- `src/birkin_agent/dashboard.py`: turns run records, usage, warnings, agents, and
-  skills into dashboard API data, including model, auth, API, and gateway status.
+- `src/birkin_agent/dashboard.py`: turns run records, usage, warnings, approvals,
+  learning proposals, reliability traces, health, budget, agents, and skills into
+  dashboard API data.
 - `src/birkin_agent/web.py`: serves a local operator dashboard with running jobs,
-  result summaries, status, usage, warnings, skills, agents, and job generation.
+  result summaries, status, usage, warnings, approvals, learning, reliability, skills,
+  agents, chat, and job generation.
 - `skills/`: bundled starter skill set covering core, tools, development, creative,
   integrations, and product workflows.
 - `skills/hermes-reflections/`: one Birkin skill per Hermes bundled upstream skill
@@ -75,6 +86,12 @@ The first skill with a given `name` wins. Later duplicates are reported as shado
   and `--execute` on the run command.
 - The `api-agent` runner can call structured tools. Consequential tools are
   queued in approvals instead of executing directly.
+- Approval queue entries carry `safe`, `review`, `dangerous`, `external`, or
+  `irreversible` risk tiers.
+- Memory and skill/self-improvement changes write learning events with evidence links.
+  Skill changes from agents and Morpheus use proposal mode.
+- Upstream and official mirrored skills are immutable; changes must happen through a
+  custom fork or a reviewable proposal.
 - Local CLI OAuth profiles call the external tool's own login store and do not write
   tokens to Birkin config.
 - The gateway binds to localhost by default. If `BIRKIN_GATEWAY_TOKEN` is set, or

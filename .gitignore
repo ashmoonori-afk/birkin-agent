@@ -14,6 +14,12 @@ usage/*
 !usage/.gitkeep
 memory/*
 !memory/.gitkeep
+learning/*
+!learning/.gitkeep
+reliability/*
+!reliability/.gitkeep
+approvals/*
+!approvals/.gitkeep
 improvements/*
 !improvements/.gitkeep
 reviews/*

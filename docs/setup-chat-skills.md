@@ -79,6 +79,7 @@ Run:
 birkin-codex skills config
 birkin-codex skills config --json
 birkin-codex skills validate
+birkin-codex skills safety
 ```
 
 `skills config` reports:
@@ -91,6 +92,11 @@ birkin-codex skills validate
 - Enabled/disabled selection state.
 - Hermes and OpenClaw reflection counts.
 - Exact upstream mirror completeness.
+- Registry consistency for canonical id, path, source, enabled state, and list/view agreement.
+- Skill safety summary for permission metadata, versions, hashes, and immutable upstream mirrors.
 
 This check is separate from `skills validate`, which still validates each `SKILL.md`
 frontmatter and body. `skills validate` also includes the config-level checks.
+
+`skills safety` lists per-skill permission manifest, version, author/source, computed
+hash, tests, last verified value, and whether the skill is immutable.

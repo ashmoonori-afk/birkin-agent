@@ -235,14 +235,22 @@
       "conversations": "Birkin/Conversations",
       "feedback": "Birkin/Feedback",
       "errors": "Birkin/Errors",
-      "runs": "Birkin/Runs"
+      "runs": "Birkin/Runs",
+      "user": "Birkin/User",
+      "project": "Birkin/Project",
+      "environment": "Birkin/Environment",
+      "workflow": "Birkin/Workflow",
+      "ephemeral": "Birkin/Ephemeral",
+      "negative": "Birkin/Negative"
     },
     "autoCapture": {
       "chat": true,
       "runs": true,
       "feedback": true,
       "errors": true
-    }
+    },
+    "historyPath": "memory/history.jsonl",
+    "negativeRevalidateDays": 30
   },
   "telegram": {
     "enabled": false,
@@ -258,7 +266,36 @@
       "skills"
     ],
     "pendingPath": "approvals/pending",
-    "historyPath": "approvals/history"
+    "historyPath": "approvals/history",
+    "riskTiers": {
+      "memory": "safe",
+      "skills": "review",
+      "file": "review",
+      "shell": "dangerous",
+      "external": "external",
+      "telegram": "external",
+      "schedule": "review",
+      "cron": "review",
+      "mail": "external",
+      "calendar": "external",
+      "payment": "irreversible",
+      "delete": "irreversible"
+    }
+  },
+  "learning": {
+    "eventsPath": "learning/events.jsonl",
+    "pendingPath": "learning/proposals/pending",
+    "historyPath": "learning/proposals/history",
+    "safeConfidence": 0.85
+  },
+  "reliability": {
+    "eventsPath": "reliability/events.jsonl",
+    "budgets": {
+      "perRunTokenLimit": 120000,
+      "dailyTokenLimit": 500000,
+      "monthlyTokenLimit": 5000000,
+      "warnAtPct": 80
+    }
   },
   "morpheus": {
     "enabled": false,

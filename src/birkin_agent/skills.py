@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -90,6 +91,42 @@ def metadata_block(frontmatter: dict[str, Any], key: str) -> dict[str, Any]:
     return {}
 
 
+def birkin_metadata(frontmatter: dict[str, Any]) -> dict[str, Any]:
+    return metadata_block(frontmatter, "birkin")
+
+
+def permission_manifest(frontmatter: dict[str, Any]) -> dict[str, Any]:
+    permissions = frontmatter.get("permissions")
+    if isinstance(permissions, dict):
+        return permissions
+    birkin = birkin_metadata(frontmatter)
+    value = birkin.get("permissions")
+    return value if isinstance(value, dict) else {"tools": [], "resources": [], "approval": "review"}
+
+
+def skill_hash(path: Path) -> str:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+    except OSError:
+        return ""
+
+
+def immutable_skill(workspace: Workspace, path: Path) -> bool:
+    try:
+        frontmatter, _body, _issues = parse_frontmatter(path)
+    except OSError:
+        return False
+    birkin = birkin_metadata(frontmatter)
+    rel = path.relative_to(workspace.root).as_posix() if path.is_relative_to(workspace.root) else path.as_posix()
+    if birkin.get("upstreamMirror"):
+        return True
+    if rel.startswith("skills/upstream/"):
+        return True
+    if "/hermes-reflections/" in rel or "/openclaw-reflections/" in rel:
+        return True
+    return bool(birkin.get("immutable") is True or frontmatter.get("source") == "official")
+
+
 def platform_name() -> str:
     name = platform.system().lower()
     if name == "darwin":
@@ -158,11 +195,25 @@ def discover_skills(workspace: Workspace) -> list[SkillRecord]:
     disabled = set(skill_config.get("disabled") or [])
     enabled = skill_config.get("enabled")
     enabled_set = set(enabled or []) if isinstance(enabled, list) else None
-    records_by_name: dict[str, SkillRecord] = {}
-
-    for source in skill_config.get("roots", []):
+    roots = [str(source) for source in skill_config.get("roots", [])]
+    files_by_root: list[tuple[str, Path, Path]] = []
+    signature: list[tuple[str, str, int, int]] = []
+    for source in roots:
         root = workspace.rel(source)
         for skill_file in iter_skill_files(workspace, root):
+            try:
+                stat = skill_file.stat()
+            except OSError:
+                continue
+            files_by_root.append((source, root, skill_file))
+            signature.append((source, str(skill_file.relative_to(workspace.root)), stat.st_mtime_ns, stat.st_size))
+    cache_key = (tuple(roots), tuple(signature), tuple(sorted(disabled)), tuple(sorted(enabled_set)) if enabled_set is not None else None)
+    cached = getattr(workspace, "_skill_discovery_cache", None)
+    if isinstance(cached, dict) and cached.get("key") == cache_key:
+        return list(cached.get("records") or [])
+    records_by_name: dict[str, SkillRecord] = {}
+
+    for source, root, skill_file in files_by_root:
             resolved = skill_file.resolve()
             if not is_relative_to(resolved, root.resolve()):
                 continue
@@ -194,7 +245,12 @@ def discover_skills(workspace: Workspace) -> list[SkillRecord]:
                 existing.shadowed.append(skill_file)
             else:
                 records_by_name[name] = record
-    return list(records_by_name.values())
+    records = list(records_by_name.values())
+    try:
+        setattr(workspace, "_skill_discovery_cache", {"key": cache_key, "records": records})
+    except Exception:
+        pass
+    return list(records)
 
 
 def validate_skills(workspace: Workspace) -> tuple[list[str], list[str]]:
@@ -262,7 +318,78 @@ def validate_skill_config(workspace: Workspace) -> tuple[list[str], list[str]]:
         warnings.append(f"skills.disabled references missing skill: {name}")
     if records and not any(record.enabled and record.eligible for record in records):
         errors.append("no skills are currently enabled and eligible")
+    registry_errors, registry_warnings = registry_consistency(workspace, records)
+    errors.extend(registry_errors)
+    warnings.extend(registry_warnings)
     return errors, warnings
+
+
+def registry_consistency(workspace: Workspace, records: list[SkillRecord] | None = None) -> tuple[list[str], list[str]]:
+    errors: list[str] = []
+    warnings: list[str] = []
+    records = records or discover_skills(workspace)
+    names = set()
+    list_rows = {row["name"]: row for row in skill_rows(workspace)} if records else {}
+    for record in records:
+        canonical = slugify(record.name)
+        if not canonical:
+            errors.append(f"{record.path}: empty canonical skill id")
+        if record.name in names:
+            warnings.append(f"duplicate canonical skill id: {record.name}")
+        names.add(record.name)
+        if not is_relative_to(record.path.resolve(), workspace.root):
+            errors.append(f"{record.name}: skill path escapes workspace")
+        row = list_rows.get(record.name)
+        if not row:
+            errors.append(f"{record.name}: list/view registry mismatch")
+        elif row["enabled"] not in {"yes", "no"}:
+            errors.append(f"{record.name}: enabled state must be yes/no")
+        if not record.source:
+            warnings.append(f"{record.name}: missing source root")
+    return errors, warnings
+
+
+def skill_safety_rows(workspace: Workspace) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for record in sorted(discover_skills(workspace), key=lambda item: item.name):
+        birkin = birkin_metadata(record.frontmatter)
+        permissions = permission_manifest(record.frontmatter)
+        tests = birkin.get("tests") if isinstance(birkin.get("tests"), list) else record.frontmatter.get("tests")
+        if isinstance(tests, str):
+            tests_value = tests
+        elif isinstance(tests, list):
+            tests_value = ",".join(str(item) for item in tests)
+        else:
+            tests_value = ""
+        rows.append(
+            {
+                "name": record.name,
+                "version": str(record.frontmatter.get("version") or ""),
+                "author": str(birkin.get("author") or record.frontmatter.get("author") or ""),
+                "source": str(birkin.get("source") or record.source),
+                "hash": skill_hash(record.path),
+                "permissions": json.dumps(permissions, ensure_ascii=False, sort_keys=True),
+                "tests": tests_value,
+                "lastVerified": str(birkin.get("lastVerified") or record.frontmatter.get("lastVerified") or ""),
+                "immutable": "yes" if immutable_skill(workspace, record.path) else "no",
+                "path": str(record.path.relative_to(workspace.root)) if record.path.is_relative_to(workspace.root) else str(record.path),
+            }
+        )
+    return rows
+
+
+def skill_safety_summary(workspace: Workspace) -> dict[str, int]:
+    records = discover_skills(workspace)
+    immutable = sum(1 for record in records if immutable_skill(workspace, record.path))
+    with_permissions = sum(1 for record in records if bool(permission_manifest(record.frontmatter)))
+    with_version = sum(1 for record in records if bool(record.frontmatter.get("version")))
+    return {
+        "total": len(records),
+        "immutable": immutable,
+        "withPermissions": with_permissions,
+        "withVersion": with_version,
+        "withHash": len(records),
+    }
 
 
 def skill_config_rows(workspace: Workspace) -> list[dict[str, str]]:
@@ -274,6 +401,7 @@ def skill_config_rows(workspace: Workspace) -> list[dict[str, str]]:
     hermes = sum(1 for record in records if record.name.startswith("hermes-"))
     openclaw = sum(1 for record in records if record.name.startswith("openclaw-"))
     upstream = upstream_manifest_status(workspace)
+    safety = skill_safety_summary(workspace)
     errors, warnings = validate_skill_config(workspace)
     roots = config.get("roots") if isinstance(config, dict) else []
     enabled_config = config.get("enabled") if isinstance(config, dict) else None
@@ -328,6 +456,20 @@ def skill_config_rows(workspace: Workspace) -> list[dict[str, str]]:
             "status": "ok" if upstream["total"] >= hermes + openclaw and upstream["missing"] == 0 else "warning",
             "detail": f"{upstream['total']} mirrored upstream skills, {upstream['missing']} missing directories",
         },
+        {
+            "check": "registry-consistency",
+            "status": "error" if any("registry" in item or "canonical" in item for item in errors) else "ok",
+            "detail": "canonical id/path/source/enabled/list-view checks complete",
+        },
+        {
+            "check": "skill-safety",
+            "status": "ok",
+            "detail": (
+                f"{safety['withHash']}/{safety['total']} hashed, "
+                f"{safety['withVersion']}/{safety['total']} versioned, "
+                f"{safety['immutable']} immutable upstream/official skills"
+            ),
+        },
     ]
     if errors:
         rows.append({"check": "config-errors", "status": "error", "detail": "; ".join(errors[:3])})
@@ -372,7 +514,8 @@ def create_skill(workspace: Workspace, name: str, description: str, group: str =
 name: {slug}
 description: {description_value}
 version: 0.1.0
-metadata: {{"hermes": {{"tags": ["custom"]}}, "openclaw": {{"alwaysInclude": true}}}}
+permissions: {{"tools": [], "resources": ["workspace"], "approval": "review"}}
+metadata: {{"birkin": {{"author": "user", "source": "custom", "permissions": {{"tools": [], "resources": ["workspace"], "approval": "review"}}, "tests": ["birkin-codex skills validate"], "lastVerified": "", "immutable": false}}, "hermes": {{"tags": ["custom"]}}, "openclaw": {{"alwaysInclude": true}}}}
 ---
 
 # {name}
@@ -394,6 +537,23 @@ Use this skill when the task clearly matches: {description}
 - Claims are backed by files, run records, or cited sources.
 """
     path.write_text(content, encoding="utf-8")
+    try:
+        from .learning import write_learning_event
+
+        write_learning_event(
+            workspace,
+            action="skill-create",
+            target_type="skill",
+            target=slug,
+            evidence=[{"type": "manual", "ref": "birkin-codex skills create"}],
+            confidence=0.9,
+            author="user",
+            reason="explicit skill creation",
+            metadata={"path": str(path.relative_to(workspace.root)), "hash": skill_hash(path)},
+            rollback={"kind": "file-restore", "path": str(path.relative_to(workspace.root)), "before": ""},
+        )
+    except Exception:
+        pass
     return path
 
 

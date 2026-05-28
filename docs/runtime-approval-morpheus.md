@@ -50,14 +50,25 @@ POST /api/approvals
 ```
 
 Approval-gated categories include shell, external web fetch, Telegram send, scheduling,
-and model-requested file writes. Approved history is stored under `approvals/history`.
+model-requested file writes, and file deletes. Approved history is stored under
+`approvals/history`.
+
+Each approval record includes:
+
+- Risk tier: `safe`, `review`, `dangerous`, `external`, or `irreversible`.
+- Evidence links.
+- Affected resources.
+- Dry-run preview.
+- Rollback hint.
 
 ## Morpheus
 
 Morpheus is the 04:00 self-improvement review. It is intentionally conservative:
 
 - Reads recent conversations, runs, errors, feedback, ledger rows, and changed files.
-- Writes semantic memory and repeatable skill lessons when safe.
+- Writes semantic memory only when confidence and evidence strength pass the safe apply
+  threshold.
+- Converts weak evidence and all skill updates into verified-learning proposals.
 - Proposes schedules or consequential automation through approvals.
 - Does not require an API key for dry-run mode.
 
@@ -94,3 +105,14 @@ Morpheus is the public name used by the CLI, dashboard, gateway, and docs.
 - Local CLI profiles remain command runners and do not expose structured tool calls.
 - Morpheus dry-run is deterministic and no-key safe.
 - Gateway auth remains local/token based instead of adding a larger service stack.
+
+## Verified Learning Commands
+
+```sh
+birkin-codex learning list
+birkin-codex learning events
+birkin-codex learning show <proposal-id>
+birkin-codex learning approve <proposal-id>
+birkin-codex learning reject <proposal-id>
+birkin-codex learning rollback <event-id>
+```

@@ -11,6 +11,14 @@ from .auth import add_auth_profile, auth_rows, run_auth_command, validate_auth
 from .chat import run_chat
 from .gateway import ROUTES, gateway_info, serve_gateway, validate_gateway
 from .improve import append_lesson, apply_improvement, propose_improvement
+from .learning import (
+    approve_learning,
+    learning_event_rows,
+    learning_proposal_rows,
+    reject_learning,
+    rollback_learning,
+    show_learning_proposal,
+)
 from .ledger import ledger_rows, ledger_summary
 from .approvals import approval_rows, approve, reject
 from .memory import (
@@ -26,9 +34,10 @@ from .memory import (
 )
 from .models import add_model_profile, model_rows, use_model_profile, validate_models
 from .morpheus import run_morpheus
+from .reliability import budget_status, health_checks, reliability_rows, trace_rows
 from .scheduler import daemon_status, run_daemon, schedule_rows
 from .setup import setup_report, setup_rows
-from .skills import create_skill, discover_skills, skill_config_rows, skill_rows, validate_skills
+from .skills import create_skill, discover_skills, skill_config_rows, skill_rows, skill_safety_rows, validate_skills
 from .telegram import configure_telegram, send_telegram_message, telegram_status, validate_telegram
 from .util import print_table
 from .web import serve
@@ -76,6 +85,8 @@ def build_parser() -> argparse.ArgumentParser:
     add_ledger_parser(sub.add_parser("ledger", help="Inspect usage ledger"))
     add_telegram_parser(sub.add_parser("telegram", help="Configure Telegram onboarding"))
     add_approvals_parser(sub.add_parser("approvals", help="Review pending consequential actions"))
+    add_learning_parser(sub.add_parser("learning", help="Review verified-learning proposals and events"))
+    add_reliability_parser(sub.add_parser("reliability", help="Inspect traces, health, and budget"))
     add_morpheus_parser(sub.add_parser("morpheus", help="Run the Morpheus self-improvement pass"))
     add_daemon_parser(sub.add_parser("daemon", help="Run the portable Birkin daemon"))
 
@@ -96,6 +107,9 @@ def build_parser() -> argparse.ArgumentParser:
     skills_config = skills_sub.add_parser("config")
     skills_config.add_argument("--json", action="store_true")
     skills_config.set_defaults(func=cmd_skills_config)
+    skills_safety = skills_sub.add_parser("safety")
+    skills_safety.add_argument("--json", action="store_true")
+    skills_safety.set_defaults(func=cmd_skills_safety)
     skills_create = skills_sub.add_parser("create")
     skills_create.add_argument("name")
     skills_create.add_argument("--description", required=True)
@@ -283,7 +297,11 @@ def add_memory_parser(parser: argparse.ArgumentParser) -> None:
     set_vault.add_argument("--allow-external", action="store_true")
     set_vault.set_defaults(func=cmd_memory_set_vault)
     record = memory_sub.add_parser("record")
-    record.add_argument("--kind", default="feedback", choices=["feedback", "errors", "conversations", "runs"])
+    record.add_argument(
+        "--kind",
+        default="feedback",
+        choices=["feedback", "errors", "conversations", "runs", "user", "project", "environment", "workflow", "ephemeral", "negative"],
+    )
     record.add_argument("--text", required=True)
     record.set_defaults(func=cmd_memory_record)
     recall = memory_sub.add_parser("recall")
@@ -293,14 +311,31 @@ def add_memory_parser(parser: argparse.ArgumentParser) -> None:
     search = memory_sub.add_parser("search")
     search.add_argument("query")
     search.add_argument("--limit", type=int, default=8)
+    search.add_argument("--type")
+    search.add_argument("--scope")
+    search.add_argument("--min-confidence", type=float)
+    search.add_argument("--tag")
+    search.add_argument("--source")
+    search.add_argument("--include-expired", action="store_true")
     search.add_argument("--json", action="store_true")
     search.set_defaults(func=cmd_memory_search)
     write = memory_sub.add_parser("write-note")
     write.add_argument("--title", required=True)
     write.add_argument("--body", required=True)
-    write.add_argument("--kind", default="feedback", choices=["feedback", "errors", "conversations", "runs"])
+    write.add_argument(
+        "--kind",
+        default="feedback",
+        choices=["feedback", "errors", "conversations", "runs", "user", "project", "environment", "workflow", "ephemeral", "negative"],
+    )
     write.add_argument("--type", default="topic")
     write.add_argument("--confidence", type=float, default=0.7)
+    write.add_argument("--ttl-days", type=int)
+    write.add_argument("--scope", action="append", default=[], help="Scope key=value, repeatable.")
+    write.add_argument("--author", default="user")
+    write.add_argument("--agent", default="")
+    write.add_argument("--reason", default="manual memory write")
+    write.add_argument("--blame", default="")
+    write.add_argument("--expected-version", type=int)
     write.add_argument("--tag", action="append", default=[])
     write.add_argument("--source", action="append", default=[])
     write.add_argument("--link", action="append", default=[])
@@ -361,6 +396,50 @@ def add_approvals_parser(parser: argparse.ArgumentParser) -> None:
     reject_cmd.add_argument("id")
     reject_cmd.add_argument("--json", action="store_true")
     reject_cmd.set_defaults(func=cmd_approvals_reject)
+
+
+def add_learning_parser(parser: argparse.ArgumentParser) -> None:
+    learning_sub = parser.add_subparsers(required=True)
+    list_cmd = learning_sub.add_parser("list")
+    list_cmd.add_argument("--json", action="store_true")
+    list_cmd.set_defaults(func=cmd_learning_list)
+    events = learning_sub.add_parser("events")
+    events.add_argument("--json", action="store_true")
+    events.add_argument("--limit", type=int, default=50)
+    events.set_defaults(func=cmd_learning_events)
+    show = learning_sub.add_parser("show")
+    show.add_argument("id")
+    show.set_defaults(func=cmd_learning_show)
+    approve_cmd = learning_sub.add_parser("approve")
+    approve_cmd.add_argument("id")
+    approve_cmd.add_argument("--json", action="store_true")
+    approve_cmd.set_defaults(func=cmd_learning_approve)
+    reject_cmd = learning_sub.add_parser("reject")
+    reject_cmd.add_argument("id")
+    reject_cmd.add_argument("--json", action="store_true")
+    reject_cmd.set_defaults(func=cmd_learning_reject)
+    rollback_cmd = learning_sub.add_parser("rollback")
+    rollback_cmd.add_argument("event_id")
+    rollback_cmd.add_argument("--json", action="store_true")
+    rollback_cmd.set_defaults(func=cmd_learning_rollback)
+
+
+def add_reliability_parser(parser: argparse.ArgumentParser) -> None:
+    reliability_sub = parser.add_subparsers(required=True)
+    health = reliability_sub.add_parser("health")
+    health.add_argument("--json", action="store_true")
+    health.set_defaults(func=cmd_reliability_health)
+    traces = reliability_sub.add_parser("traces")
+    traces.add_argument("--json", action="store_true")
+    traces.add_argument("--limit", type=int, default=80)
+    traces.set_defaults(func=cmd_reliability_traces)
+    log = reliability_sub.add_parser("log")
+    log.add_argument("--json", action="store_true")
+    log.add_argument("--limit", type=int, default=50)
+    log.set_defaults(func=cmd_reliability_log)
+    budget = reliability_sub.add_parser("budget")
+    budget.add_argument("--json", action="store_true")
+    budget.set_defaults(func=cmd_reliability_budget)
 
 
 def add_morpheus_parser(parser: argparse.ArgumentParser) -> None:
@@ -652,7 +731,17 @@ def cmd_memory_recall(args: argparse.Namespace) -> int:
 
 
 def cmd_memory_search(args: argparse.Namespace) -> int:
-    rows = memory_search(ws(), args.query, limit=args.limit)
+    rows = memory_search(
+        ws(),
+        args.query,
+        limit=args.limit,
+        note_type=args.type,
+        scope=args.scope,
+        min_confidence=args.min_confidence,
+        tag=args.tag,
+        source=args.source,
+        include_expired=args.include_expired,
+    )
     if args.json:
         print(json.dumps(rows, indent=2, ensure_ascii=False))
     else:
@@ -671,10 +760,30 @@ def cmd_memory_write_note(args: argparse.Namespace) -> int:
         links=args.link,
         confidence=args.confidence,
         sources=args.source,
+        ttl_days=args.ttl_days,
+        scope=parse_scope_args(args.scope),
+        author=args.author,
+        agent=args.agent,
+        reason=args.reason,
+        blame=args.blame,
+        expected_version=args.expected_version,
         append=args.append,
     )
     print(note.path)
     return 0
+
+
+def parse_scope_args(values: list[str]) -> dict[str, str]:
+    scope: dict[str, str] = {}
+    for value in values or []:
+        if "=" not in value:
+            raise ValueError(f"scope must be key=value: {value}")
+        key, raw = value.split("=", 1)
+        key = key.strip()
+        if key not in {"user", "project", "machine", "channel", "thread", "profile"}:
+            raise ValueError(f"unsupported scope key: {key}")
+        scope[key] = raw.strip()
+    return scope
 
 
 def cmd_memory_get_note(args: argparse.Namespace) -> int:
@@ -777,7 +886,7 @@ def cmd_approvals_list(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps(rows, indent=2, ensure_ascii=False))
     else:
-        print_table(rows, ["id", "category", "title", "origin", "status", "created", "description"])
+        print_table(rows, ["id", "category", "riskTier", "title", "origin", "status", "resources", "dryRun", "rollback"])
     return 0
 
 
@@ -796,6 +905,99 @@ def cmd_approvals_reject(args: argparse.Namespace) -> int:
         print(json.dumps(result, indent=2, ensure_ascii=False))
     else:
         print(result.get("result") or "rejected")
+    return 0
+
+
+def cmd_learning_list(args: argparse.Namespace) -> int:
+    rows = learning_proposal_rows(ws())
+    if args.json:
+        print(json.dumps(rows, indent=2, ensure_ascii=False))
+    else:
+        print_table(rows, ["id", "targetType", "target", "action", "riskTier", "confidence", "evidence", "reason"])
+    return 0
+
+
+def cmd_learning_events(args: argparse.Namespace) -> int:
+    rows = learning_event_rows(ws(), limit=args.limit)
+    if args.json:
+        print(json.dumps(rows, indent=2, ensure_ascii=False))
+    else:
+        print_table(rows, ["timestamp", "status", "action", "targetType", "target", "confidence", "evidenceStrength", "reason"])
+    return 0
+
+
+def cmd_learning_show(args: argparse.Namespace) -> int:
+    print(json.dumps(show_learning_proposal(ws(), args.id), indent=2, ensure_ascii=False))
+    return 0
+
+
+def cmd_learning_approve(args: argparse.Namespace) -> int:
+    result = approve_learning(ws(), args.id)
+    if args.json:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        print(result.get("result") or "approved")
+    return 0
+
+
+def cmd_learning_reject(args: argparse.Namespace) -> int:
+    result = reject_learning(ws(), args.id)
+    if args.json:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        print(result.get("result") or "rejected")
+    return 0
+
+
+def cmd_learning_rollback(args: argparse.Namespace) -> int:
+    result = rollback_learning(ws(), args.event_id)
+    if args.json:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        print(result.get("result") or "rolled back")
+    return 0
+
+
+def cmd_reliability_health(args: argparse.Namespace) -> int:
+    rows = health_checks(ws())
+    if args.json:
+        print(json.dumps(rows, indent=2, ensure_ascii=False))
+    else:
+        print_table(rows, ["name", "status", "detail"])
+    return 1 if any(row["status"] == "error" for row in rows) else 0
+
+
+def cmd_reliability_traces(args: argparse.Namespace) -> int:
+    rows = trace_rows(ws(), limit=args.limit)
+    if args.json:
+        print(json.dumps(rows, indent=2, ensure_ascii=False))
+    else:
+        print_table(rows, ["timestamp", "traceId", "stage", "status", "resource", "message"])
+    return 0
+
+
+def cmd_reliability_log(args: argparse.Namespace) -> int:
+    rows = reliability_rows(ws(), limit=args.limit)
+    if args.json:
+        print(json.dumps(rows, indent=2, ensure_ascii=False))
+    else:
+        print_table(rows, ["timestamp", "traceId", "stage", "status", "resource", "message"])
+    return 0
+
+
+def cmd_reliability_budget(args: argparse.Namespace) -> int:
+    payload = budget_status(ws())
+    if args.json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    else:
+        print_table(
+            [
+                {"window": "per-run", **{key: str(value) for key, value in payload["perRun"].items()}},
+                {"window": "daily", **{key: str(value) for key, value in payload["daily"].items()}},
+                {"window": "monthly", **{key: str(value) for key, value in payload["monthly"].items()}},
+            ],
+            ["window", "used", "limit"],
+        )
     return 0
 
 
@@ -866,6 +1068,15 @@ def cmd_skills_config(args: argparse.Namespace) -> int:
     else:
         print_table(rows, ["check", "status", "detail"])
     return 1 if any(row["status"] == "error" for row in rows) else 0
+
+
+def cmd_skills_safety(args: argparse.Namespace) -> int:
+    rows = skill_safety_rows(ws())
+    if args.json:
+        print(json.dumps(rows, indent=2, ensure_ascii=False))
+    else:
+        print_table(rows, ["name", "version", "author", "source", "hash", "immutable", "lastVerified", "permissions"])
+    return 0
 
 
 def cmd_skills_create(args: argparse.Namespace) -> int:

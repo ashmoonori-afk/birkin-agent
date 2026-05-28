@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import re
 
-from .skills import discover_skills
+from .skills import discover_skills, immutable_skill
 from .util import safe_path, slugify, utc_stamp
 from .workspace import Workspace
 
@@ -26,6 +26,8 @@ def collect_signals(workspace: Workspace) -> list[str]:
             continue
         for path in sorted(root.rglob("*")):
             if not path.is_file() or path.suffix.lower() not in {".md", ".json", ".jsonl", ".txt"}:
+                continue
+            if path.name.endswith(("_morpheus.json", "_nightly.json")):
                 continue
             if not safe_path(workspace.root, str(path.relative_to(workspace.root))).exists():
                 continue
@@ -81,6 +83,24 @@ py -m birkin_agent improve apply {proposal.name} --skill {target or "<skill-name
 """,
         encoding="utf-8",
     )
+    try:
+        from .learning import add_learning_proposal
+
+        add_learning_proposal(
+            workspace,
+            target_type="skill",
+            target=target or "new-skill-needed",
+            action="skill-improvement",
+            before="",
+            after=patch,
+            evidence=[{"type": "file", "ref": signal.split(":", 1)[0]} for signal in signals if ":" in signal],
+            confidence=0.7,
+            reason="self-improvement proposal created from recorded signals",
+            risk_tier="review",
+            apply_payload={"kind": "file-replace", "path": str(proposal.relative_to(workspace.root)), "content": proposal.read_text(encoding="utf-8")},
+        )
+    except Exception:
+        pass
     return proposal
 
 
@@ -131,6 +151,8 @@ def apply_improvement(workspace: Workspace, proposal_name: str, skill_name: str,
     if not proposal.exists():
         raise FileNotFoundError(proposal)
     skill_path = find_skill_path(workspace, skill_name)
+    if skill_path is not None and immutable_skill(workspace, skill_path):
+        raise PermissionError("upstream or official mirrored skills are immutable; fork a custom skill or keep the change as a proposal")
     if skill_path is None:
         skill_path = workspace.rel("skills", "custom", slugify(skill_name), "SKILL.md")
         skill_path.parent.mkdir(parents=True, exist_ok=True)
@@ -155,4 +177,21 @@ metadata: {{"hermes": {{"tags": ["self-improvement"]}}, "openclaw": {{"alwaysInc
     current = skill_path.read_text(encoding="utf-8")
     if patch not in current:
         skill_path.write_text(current.rstrip() + "\n\n" + patch + "\n", encoding="utf-8")
+        try:
+            from .learning import write_learning_event
+
+            write_learning_event(
+                workspace,
+                action="skill-improvement-apply",
+                target_type="skill",
+                target=skill_name,
+                evidence=[{"type": "file", "ref": str(proposal.relative_to(workspace.root))}],
+                confidence=0.9,
+                author="user",
+                reason="approved self-improvement proposal applied with --yes",
+                metadata={"skillPath": str(skill_path.relative_to(workspace.root)), "proposal": str(proposal.relative_to(workspace.root))},
+                rollback={"kind": "file-restore", "path": str(skill_path.relative_to(workspace.root)), "before": current},
+            )
+        except Exception:
+            pass
     return skill_path

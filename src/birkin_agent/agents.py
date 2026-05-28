@@ -207,9 +207,31 @@ def save_run_record(
     try:
         from .ledger import append_ledger_entry
         from .memory import capture_run_memory
+        from .reliability import log_reliability_event
 
         append_ledger_entry(workspace, path, payload)
         capture_run_memory(workspace, path, payload)
+        trace_id = path.stem
+        log_reliability_event(
+            workspace,
+            stage="agent",
+            status=status,
+            trace_id=trace_id,
+            resource=agent_id,
+            message=summary,
+            evidence=[{"type": "run", "ref": str(path.relative_to(workspace.root))}],
+            metadata={"runner": runner, "model": payload.get("model") or {}, "usage": usage},
+        )
+        log_reliability_event(
+            workspace,
+            stage="result",
+            status=status,
+            trace_id=trace_id,
+            resource=str(path.relative_to(workspace.root)),
+            message=summary,
+            evidence=[{"type": "run", "ref": str(path.relative_to(workspace.root))}],
+            metadata={"usage": usage},
+        )
     except Exception:
         pass
     return path

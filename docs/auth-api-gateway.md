@@ -115,6 +115,8 @@ GET /api/setup
 GET /api/skills/config
 GET /api/memory
 GET /api/ledger
+GET /api/learning
+GET /api/reliability
 GET /api/telegram
 GET /api/approvals
 GET /api/schedules
@@ -122,6 +124,7 @@ GET /api/daemon
 POST /api/run
 POST /api/chat
 POST /api/approvals
+POST /api/learning
 POST /api/morpheus
 POST /api/auth/{profile}/status
 POST /api/auth/{profile}/login

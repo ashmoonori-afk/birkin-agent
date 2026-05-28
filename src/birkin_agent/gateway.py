@@ -13,9 +13,11 @@ from .agents import run_agent
 from .auth import auth_rows, run_auth_command, validate_auth
 from .chat import run_chat
 from .ledger import ledger_rows, ledger_summary
+from .learning import approve_learning, learning_event_rows, learning_proposal_rows, reject_learning
 from .memory import memory_status
 from .models import model_rows
 from .morpheus import run_morpheus
+from .reliability import budget_status, health_checks, reliability_rows, trace_rows
 from .scheduler import daemon_status, schedule_rows
 from .skills import skill_config_rows
 from .telegram import run_telegram_inbound, telegram_status
@@ -34,6 +36,8 @@ ROUTES = [
     "GET /api/skills/config",
     "GET /api/memory",
     "GET /api/ledger",
+    "GET /api/learning",
+    "GET /api/reliability",
     "GET /api/telegram",
     "GET /api/approvals",
     "GET /api/schedules",
@@ -41,6 +45,7 @@ ROUTES = [
     "POST /api/run",
     "POST /api/chat",
     "POST /api/approvals",
+    "POST /api/learning",
     "POST /api/morpheus",
     "POST /api/auth/{profile}/status",
     "POST /api/auth/{profile}/login",
@@ -151,7 +156,8 @@ class GatewayHandler(BaseHTTPRequestHandler):
             return
         parsed = urlparse(self.path)
         if parsed.path == "/health":
-            self.send_json({"status": "ok", "service": "birkin-gateway"})
+            checks = health_checks(self.workspace)
+            self.send_json({"status": "ok" if not any(row["status"] == "error" for row in checks) else "warning", "service": "birkin-gateway", "checks": checks})
             return
         if parsed.path == "/routes":
             self.send_json({"routes": ROUTES})
@@ -186,6 +192,12 @@ class GatewayHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/ledger":
             self.send_json({"ledger": ledger_summary(self.workspace), "rows": ledger_rows(self.workspace)})
+            return
+        if parsed.path == "/api/learning":
+            self.send_json({"proposals": learning_proposal_rows(self.workspace), "events": learning_event_rows(self.workspace)})
+            return
+        if parsed.path == "/api/reliability":
+            self.send_json({"health": health_checks(self.workspace), "budget": budget_status(self.workspace), "traces": trace_rows(self.workspace), "log": reliability_rows(self.workspace)})
             return
         if parsed.path == "/api/telegram":
             self.send_json({"telegram": telegram_status(self.workspace)})
@@ -227,6 +239,19 @@ class GatewayHandler(BaseHTTPRequestHandler):
                 self.send_json({"error": str(exc)}, 400)
                 return
             self.send_json({"approval": result, "approvals": approval_rows(self.workspace)})
+            return
+        if parsed.path == "/api/learning":
+            action = str(payload.get("action") or "").strip().lower()
+            proposal_id = str(payload.get("id") or "").strip()
+            if action not in {"approve", "reject"} or not proposal_id:
+                self.send_json({"error": "action approve/reject and id are required"}, 400)
+                return
+            try:
+                result = approve_learning(self.workspace, proposal_id) if action == "approve" else reject_learning(self.workspace, proposal_id)
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, 400)
+                return
+            self.send_json({"learning": result, "proposals": learning_proposal_rows(self.workspace)})
             return
         if parsed.path in {"/api/morpheus", "/api/nightly"}:
             try:

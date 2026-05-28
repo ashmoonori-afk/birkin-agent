@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import json
 import re
@@ -19,12 +20,50 @@ DEFAULT_MEMORY_CONFIG = {
         "feedback": "Birkin/Feedback",
         "errors": "Birkin/Errors",
         "runs": "Birkin/Runs",
+        "user": "Birkin/User",
+        "project": "Birkin/Project",
+        "environment": "Birkin/Environment",
+        "workflow": "Birkin/Workflow",
+        "ephemeral": "Birkin/Ephemeral",
+        "negative": "Birkin/Negative",
     },
     "autoCapture": {"chat": True, "runs": True, "feedback": True, "errors": True},
+    "historyPath": "memory/history.jsonl",
+    "negativeRevalidateDays": 30,
 }
 
-VALID_MEMORY_KINDS = {"feedback", "errors", "conversations", "runs"}
-VALID_NOTE_TYPES = {"person", "project", "preference", "fact", "topic", "session", "run", "error"}
+VALID_MEMORY_KINDS = {
+    "feedback",
+    "errors",
+    "conversations",
+    "runs",
+    "user",
+    "project",
+    "environment",
+    "workflow",
+    "ephemeral",
+    "negative",
+    "conversation",
+    "run",
+    "error",
+}
+VALID_NOTE_TYPES = {
+    "person",
+    "project",
+    "preference",
+    "fact",
+    "topic",
+    "session",
+    "run",
+    "error",
+    "user",
+    "environment",
+    "workflow",
+    "ephemeral",
+    "negative",
+    "conversation",
+    "feedback",
+}
 WIKILINK_RE = re.compile(r"\[\[([^\]]+)\]\]")
 
 
@@ -78,6 +117,9 @@ def memory_status(workspace: Workspace) -> dict[str, Any]:
         "allowExternalVault": bool(config.get("allowExternalVault") or False),
         "noteCount": len(notes),
         "linkedNotes": linked,
+        "historyPath": str(memory_history_path(workspace)),
+        "types": sorted(VALID_NOTE_TYPES),
+        "scopeKeys": ["user", "project", "machine", "channel", "thread", "profile"],
         "error": error,
     }
 
@@ -116,6 +158,8 @@ def folder_for_kind(workspace: Workspace, kind: str) -> Path:
 
 def normalize_kind(kind: str) -> str:
     value = str(kind or "feedback").strip().lower()
+    aliases = {"conversation": "conversations", "run": "runs", "error": "errors"}
+    value = aliases.get(value, value)
     return value if value in VALID_MEMORY_KINDS else "feedback"
 
 
@@ -128,6 +172,30 @@ def quote_yaml(value: str) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
+def memory_history_path(workspace: Workspace) -> Path:
+    config = memory_config(workspace)
+    path = workspace.rel(str(config.get("historyPath") or "memory/history.jsonl"))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def append_history(workspace: Workspace, payload: dict[str, Any]) -> None:
+    payload = {"timestamp": utc_stamp(), **payload}
+    with memory_history_path(workspace).open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+
+def iso_expiry(ttl_days: int | None) -> str:
+    if not ttl_days:
+        return ""
+    return (datetime.now(timezone.utc) + timedelta(days=max(1, int(ttl_days)))).strftime("%Y%m%dT%H%M%SZ")
+
+
+def expired(meta: dict[str, Any]) -> bool:
+    expires = str(meta.get("expires") or "")
+    return bool(expires and expires <= utc_stamp())
+
+
 def frontmatter(
     *,
     title: str,
@@ -138,22 +206,41 @@ def frontmatter(
     tags: list[str],
     sources: list[str],
     confidence: float,
+    scope: dict[str, str],
+    version: int,
+    ttl_days: int | None,
+    expires: str,
+    author: str,
+    agent: str,
+    reason: str,
+    blame: str,
+    evidence: list[dict[str, str]],
+    revalidate_after: str = "",
 ) -> str:
-    return "\n".join(
-        [
-            "---",
-            f"title: {quote_yaml(title)}",
-            f"kind: {kind}",
-            f"type: {note_type}",
-            f"created: {quote_yaml(created)}",
-            f"updated: {quote_yaml(updated)}",
-            f"confidence: {float(confidence):.3f}",
-            f"sources: {json.dumps(sources, ensure_ascii=False)}",
-            f"tags: {json.dumps(tags, ensure_ascii=False)}",
-            "---",
-            "",
-        ]
-    )
+    lines = [
+        "---",
+        f"title: {quote_yaml(title)}",
+        f"kind: {kind}",
+        f"type: {note_type}",
+        f"created: {quote_yaml(created)}",
+        f"updated: {quote_yaml(updated)}",
+        f"confidence: {float(confidence):.3f}",
+        f"version: {int(version)}",
+        f"scope: {json.dumps(scope, ensure_ascii=False)}",
+        f"sources: {json.dumps(sources, ensure_ascii=False)}",
+        f"tags: {json.dumps(tags, ensure_ascii=False)}",
+        f"evidence: {json.dumps(evidence, ensure_ascii=False)}",
+        f"ttlDays: {int(ttl_days) if ttl_days else 0}",
+        f"expires: {quote_yaml(expires)}",
+        f"author: {quote_yaml(author)}",
+        f"agent: {quote_yaml(agent)}",
+        f"reason: {quote_yaml(reason)}",
+        f"blame: {quote_yaml(blame)}",
+    ]
+    if revalidate_after:
+        lines.append(f"revalidateAfter: {quote_yaml(revalidate_after)}")
+    lines.extend(["---", ""])
+    return "\n".join(lines)
 
 
 def split_frontmatter(text: str) -> tuple[dict[str, Any], str]:
@@ -179,7 +266,7 @@ def split_frontmatter(text: str) -> tuple[dict[str, Any], str]:
 def parse_frontmatter_value(value: str) -> Any:
     if not value:
         return ""
-    if value[0] in {'"', "'", "["}:
+    if value[0] in {'"', "'", "[", "{"}:
         try:
             return json.loads(value)
         except json.JSONDecodeError:
@@ -231,6 +318,15 @@ def write_memory_note(
     links: list[str] | None = None,
     append: bool = False,
     stable: bool = False,
+    evidence: Any = None,
+    ttl_days: int | None = None,
+    scope: dict[str, str] | None = None,
+    author: str = "birkin",
+    agent: str = "",
+    reason: str = "",
+    blame: str = "",
+    expected_version: int | None = None,
+    record_learning: bool = True,
 ) -> MemoryNote:
     kind = normalize_kind(kind)
     note_type = normalize_note_type(note_type)
@@ -241,10 +337,19 @@ def write_memory_note(
     path = existing or note_path_for_title(workspace, kind, title, stable)
     created = utc_stamp()
     existing_body = ""
-    if path.exists():
+    previous_text = ""
+    previous_version = 0
+    previous_meta: dict[str, Any] = {}
+    existed_before = path.exists()
+    if existed_before:
         try:
-            meta, existing_body = split_frontmatter(path.read_text(encoding="utf-8", errors="replace"))
+            previous_text = path.read_text(encoding="utf-8", errors="replace")
+            meta, existing_body = split_frontmatter(previous_text)
+            previous_meta = meta
             created = str(meta.get("created") or created)
+            previous_version = int(meta.get("version") or 0)
+            if expected_version is not None and previous_version != int(expected_version):
+                raise ValueError(f"memory note version mismatch: expected {expected_version}, found {previous_version}")
             old_sources = meta.get("sources")
             if isinstance(old_sources, list):
                 source_values = sorted({*source_values, *(str(item) for item in old_sources)})
@@ -253,10 +358,25 @@ def write_memory_note(
                 tag_values = sorted({*tag_values, *(str(item) for item in old_tags)})
         except OSError:
             pass
+    elif expected_version not in {None, 0}:
+        raise ValueError(f"memory note version mismatch: expected {expected_version}, found 0")
     body = body.strip()
     if append and existing_body:
         body = existing_body.rstrip() + "\n\n" + body
     body = with_related_links(body, links or [])
+    try:
+        from .learning import normalize_evidence
+
+        evidence_values = normalize_evidence(evidence, source_values)
+    except Exception:
+        evidence_values = [{"type": "manual", "ref": "manual"}]
+    version = previous_version + 1
+    expires = iso_expiry(ttl_days)
+    scope_values = {str(key): str(value) for key, value in (scope or {}).items() if str(value).strip()}
+    revalidate_after = ""
+    if note_type == "negative" or kind == "negative":
+        days = ttl_days or int(memory_config(workspace).get("negativeRevalidateDays") or 30)
+        revalidate_after = iso_expiry(days)
     content = frontmatter(
         title=title,
         kind=kind,
@@ -266,8 +386,62 @@ def write_memory_note(
         tags=tag_values,
         sources=source_values,
         confidence=confidence,
+        scope=scope_values,
+        version=version,
+        ttl_days=ttl_days,
+        expires=expires,
+        author=author,
+        agent=agent,
+        reason=reason,
+        blame=blame,
+        evidence=evidence_values,
+        revalidate_after=revalidate_after,
     ) + body.rstrip() + "\n"
     path.write_text(content, encoding="utf-8")
+    append_history(
+        workspace,
+        {
+            "action": "write",
+            "path": str(path.relative_to(workspace.root)) if path.is_relative_to(workspace.root) else str(path),
+            "title": title,
+            "kind": kind,
+            "type": note_type,
+            "version": version,
+            "previousVersion": previous_version,
+            "confidence": confidence,
+            "scope": scope_values,
+            "ttlDays": ttl_days,
+            "evidence": evidence_values,
+            "author": author,
+            "agent": agent,
+            "reason": reason,
+            "blame": blame,
+        },
+    )
+    if record_learning:
+        try:
+            from .learning import write_learning_event
+
+            rel_path = str(path.relative_to(workspace.root)) if path.is_relative_to(workspace.root) else str(path)
+            write_learning_event(
+                workspace,
+                action="memory-write",
+                target_type="memory",
+                target=title,
+                evidence=evidence_values,
+                confidence=confidence,
+                ttl_days=ttl_days,
+                scope=scope_values,
+                author=author,
+                agent=agent,
+                reason=reason,
+                blame=blame,
+                status="applied",
+                metadata={"path": rel_path, "version": version, "kind": kind, "type": note_type},
+                rollback={"kind": "file-restore", "path": rel_path, "before": previous_text, "existed": existed_before},
+            )
+        except Exception:
+            pass
     return MemoryNote(path=path, kind=kind, title=title)
 
 
@@ -320,6 +494,10 @@ def capture_chat_memory(workspace: Workspace, message: str, reply: str, payload:
         note_type="session",
         confidence=0.7,
         sources=[str(payload.get("record") or "chat")],
+        evidence=[{"type": "conversation", "ref": str(payload.get("record") or "chat")}],
+        scope={"profile": str(payload.get("agent") or "chat")},
+        agent=str(payload.get("agent") or "chat"),
+        reason="auto-capture chat transcript",
     )
 
 
@@ -357,6 +535,10 @@ def capture_run_memory(workspace: Workspace, record: Path, payload: dict[str, An
         note_type="error" if status == "failed" else "run",
         confidence=0.8,
         sources=[str(record)],
+        evidence=[{"type": "run", "ref": str(record)}],
+        scope={"project": workspace.root.name, "profile": str(payload.get("agent") or "agent")},
+        agent=str(payload.get("agent") or "agent"),
+        reason="auto-capture run summary",
     )
 
 
@@ -373,6 +555,10 @@ def record_feedback(workspace: Workspace, text: str, kind: str = "feedback") -> 
         note_type="fact" if kind == "feedback" else "topic",
         confidence=0.8,
         sources=["manual"],
+        evidence=[{"type": "feedback", "ref": "manual"}],
+        scope={"profile": "user"},
+        author="user",
+        reason="manual feedback record",
     )
 
 
@@ -388,6 +574,14 @@ def memory_write_note(
     confidence: float = 0.7,
     sources: list[str] | None = None,
     append: bool = False,
+    evidence: Any = None,
+    ttl_days: int | None = None,
+    scope: dict[str, str] | None = None,
+    author: str = "birkin",
+    agent: str = "",
+    reason: str = "",
+    blame: str = "",
+    expected_version: int | None = None,
 ) -> MemoryNote:
     return write_memory_note(
         workspace,
@@ -401,6 +595,14 @@ def memory_write_note(
         links=links,
         append=append,
         stable=True,
+        evidence=evidence,
+        ttl_days=ttl_days,
+        scope=scope,
+        author=author,
+        agent=agent,
+        reason=reason,
+        blame=blame,
+        expected_version=expected_version,
     )
 
 
@@ -415,6 +617,16 @@ def memory_get_note(workspace: Workspace, title: str) -> dict[str, str]:
         "kind": str(meta.get("kind") or ""),
         "type": str(meta.get("type") or ""),
         "confidence": str(meta.get("confidence") or ""),
+        "version": str(meta.get("version") or ""),
+        "scope": json.dumps(meta.get("scope") or {}, ensure_ascii=False),
+        "ttlDays": str(meta.get("ttlDays") or ""),
+        "expires": str(meta.get("expires") or ""),
+        "expired": "yes" if expired(meta) else "no",
+        "author": str(meta.get("author") or ""),
+        "agent": str(meta.get("agent") or ""),
+        "reason": str(meta.get("reason") or ""),
+        "blame": str(meta.get("blame") or ""),
+        "evidence": json.dumps(meta.get("evidence") or [], ensure_ascii=False),
         "path": str(path),
         "body": body,
         "raw": text,
@@ -440,16 +652,34 @@ def memory_link(workspace: Workspace, from_title: str, to_title: str) -> MemoryN
         sources=[str(item) for item in sources],
         links=[to_title],
         stable=True,
+        scope=meta.get("scope") if isinstance(meta.get("scope"), dict) else {},
+        ttl_days=int(meta.get("ttlDays") or 0) or None,
+        author=str(meta.get("author") or "birkin"),
+        agent=str(meta.get("agent") or ""),
+        reason=f"link memory note to {to_title}",
+        evidence=meta.get("evidence") if isinstance(meta.get("evidence"), list) else sources,
     )
 
 
-def memory_search(workspace: Workspace, query: str, limit: int = 8) -> list[dict[str, str]]:
+def memory_search(
+    workspace: Workspace,
+    query: str,
+    limit: int = 8,
+    *,
+    note_type: str | None = None,
+    scope: str | None = None,
+    min_confidence: float | None = None,
+    tag: str | None = None,
+    source: str | None = None,
+    include_expired: bool = False,
+) -> list[dict[str, str]]:
     status = memory_status(workspace)
     if status.get("error") or not status.get("vaultExists"):
         return []
     vault = Path(str(status["vaultPath"]))
     terms = [term for term in re.findall(r"[\w.-]{2,}", query.lower(), flags=re.UNICODE) if term]
-    if not terms:
+    has_filters = any([note_type, scope, min_confidence is not None, tag, source])
+    if not terms and not has_filters:
         return []
     matches: list[dict[str, str]] = []
     for path in sorted(vault.rglob("*.md"), key=lambda item: item.stat().st_mtime, reverse=True):
@@ -458,8 +688,25 @@ def memory_search(workspace: Workspace, query: str, limit: int = 8) -> list[dict
         except OSError:
             continue
         meta, body = split_frontmatter(text)
+        if expired(meta) and not include_expired:
+            continue
+        if note_type and str(meta.get("type") or "").lower() != note_type.lower():
+            continue
+        if min_confidence is not None and float(meta.get("confidence") or 0.0) < float(min_confidence):
+            continue
+        tags = [str(item) for item in meta.get("tags") or []] if isinstance(meta.get("tags"), list) else []
+        if tag and tag not in tags:
+            continue
+        sources = [str(item) for item in meta.get("sources") or []] if isinstance(meta.get("sources"), list) else []
+        evidence = meta.get("evidence") if isinstance(meta.get("evidence"), list) else []
+        evidence_refs = [str(item.get("ref") or "") for item in evidence if isinstance(item, dict)]
+        if source and not any(source in item for item in [*sources, *evidence_refs]):
+            continue
+        scope_meta = meta.get("scope") if isinstance(meta.get("scope"), dict) else {}
+        if scope and not any(scope.lower() in str(value).lower() for value in scope_meta.values()):
+            continue
         lowered = text.lower()
-        score = sum(lowered.count(term) for term in terms)
+        score = sum(lowered.count(term) for term in terms) if terms else 1
         links = WIKILINK_RE.findall(text)
         if any(term in " ".join(links).lower() for term in terms):
             score += 2
@@ -472,6 +719,9 @@ def memory_search(workspace: Workspace, query: str, limit: int = 8) -> list[dict
                 "kind": str(meta.get("kind") or ""),
                 "type": str(meta.get("type") or ""),
                 "confidence": str(meta.get("confidence") or ""),
+                "version": str(meta.get("version") or ""),
+                "scope": json.dumps(scope_meta, ensure_ascii=False),
+                "expired": "yes" if expired(meta) else "no",
                 "score": str(score),
                 "snippet": best_snippet(body or text, terms),
             }

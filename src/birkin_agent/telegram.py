@@ -93,12 +93,26 @@ def send_telegram_message(workspace: Workspace, message: str) -> dict[str, Any]:
     try:
         with urlopen(request, timeout=30) as response:
             parsed = json.loads(response.read().decode("utf-8"))
-            return {"returncode": 0, "stdout": json.dumps(parsed, ensure_ascii=False), "stderr": ""}
+            result = {"returncode": 0, "stdout": json.dumps(parsed, ensure_ascii=False), "stderr": ""}
     except HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
-        return {"returncode": 1, "stdout": "", "stderr": f"HTTP {exc.code}: {body[:1000]}"}
+        result = {"returncode": 1, "stdout": "", "stderr": f"HTTP {exc.code}: {body[:1000]}"}
     except (URLError, OSError) as exc:
-        return {"returncode": 1, "stdout": "", "stderr": f"telegram request failed: {exc}"}
+        result = {"returncode": 1, "stdout": "", "stderr": f"telegram request failed: {exc}"}
+    try:
+        from .reliability import log_reliability_event
+
+        log_reliability_event(
+            workspace,
+            stage="delivery",
+            status="ok" if result["returncode"] == 0 else "failed",
+            resource="telegram",
+            message=result["stdout"][:240] or result["stderr"][:240],
+            metadata={"chatId": chat_id, "messageChars": len(message)},
+        )
+    except Exception:
+        pass
+    return result
 
 
 def telegram_api_request(workspace: Workspace, method: str, payload: dict[str, Any] | None = None, timeout: int = 35) -> dict[str, Any]:
@@ -151,6 +165,10 @@ def poll_telegram_once(workspace: Workspace, timeout: int = 0) -> dict[str, Any]
                 note_type="session",
                 tags=["telegram", "inbound"],
                 sources=[f"telegram:{update_id}"],
+                evidence=[{"type": "conversation", "ref": f"telegram:{update_id}"}],
+                scope={"channel": "telegram", "thread": str(chat.get("id") or "")},
+                agent="telegram-gateway",
+                reason="telegram inbound capture",
                 confidence=0.7,
             )
             record["memoryNote"] = str(note.path)

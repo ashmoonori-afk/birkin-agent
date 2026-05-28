@@ -10,12 +10,14 @@ from .approvals import approval_rows
 from .auth import auth_rows, validate_auth
 from .gateway import gateway_info, validate_gateway
 from .improve import collect_signals
+from .learning import learning_event_rows, learning_proposal_rows
 from .ledger import ledger_rows, ledger_summary
 from .memory import memory_status, validate_memory
 from .models import model_rows, validate_models
 from .morpheus import morpheus_status
+from .reliability import budget_status, delivery_rows, health_checks, reliability_rows, silent_failure_warnings, trace_rows
 from .scheduler import daemon_status, schedule_rows
-from .skills import discover_skills, skill_config_rows, skill_rows, validate_skills
+from .skills import discover_skills, skill_config_rows, skill_rows, skill_safety_summary, validate_skills
 from .telegram import telegram_status, validate_telegram
 from .workspace import Workspace
 
@@ -135,6 +137,7 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
         agent_errors,
         agent_warnings,
     )
+    warnings.extend(silent_failure_warnings(workspace))
     for source, severity, values in [
         ("auth", "critical", auth_errors),
         ("auth", "warning", auth_warnings),
@@ -169,6 +172,13 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
     api = api_rows(workspace)
     signals = collect_signals(workspace)
     approvals = approval_rows(workspace)
+    learning_proposals = learning_proposal_rows(workspace)
+    learning_events = learning_event_rows(workspace)
+    reliability = reliability_rows(workspace)
+    traces = trace_rows(workspace)
+    deliveries = delivery_rows(workspace)
+    health = health_checks(workspace)
+    budget = budget_status(workspace)
     schedules = schedule_rows(workspace)
     if approvals:
         warnings.append(
@@ -178,6 +188,16 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
                 "message": f"{len(approvals)} consequential action(s) pending approval",
             }
         )
+    if learning_proposals:
+        warnings.append(
+            {
+                "severity": "warning",
+                "source": "learning",
+                "message": f"{len(learning_proposals)} verified-learning proposal(s) pending review",
+            }
+        )
+    for item in budget.get("warnings") or []:
+        warnings.append({"severity": "warning", "source": "budget", "message": str(item)})
     setup = setup_dashboard_report(
         workspace,
         doctor_errors,
@@ -218,6 +238,8 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
             "warningCount": len(warnings),
             "signals": len(signals),
             "pendingApprovals": len(approvals),
+            "learningProposals": len(learning_proposals),
+            "healthErrors": sum(1 for row in health if row["status"] == "error"),
             "schedules": len(schedules),
         },
         "usage": usage,
@@ -237,6 +259,14 @@ def dashboard_data(workspace: Workspace) -> dict[str, Any]:
         "setup": setup,
         "signals": signals,
         "approvals": approvals,
+        "learningProposals": learning_proposals,
+        "learningEvents": learning_events,
+        "reliability": reliability,
+        "traces": traces,
+        "deliveries": deliveries,
+        "health": health,
+        "budget": budget,
+        "skillSafety": skill_safety_summary(workspace),
         "morpheus": morpheus_status(workspace),
         "daemon": daemon_status(workspace),
         "schedules": schedules,

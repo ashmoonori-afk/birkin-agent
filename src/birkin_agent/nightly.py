@@ -7,9 +7,9 @@ from typing import Any
 
 from .approvals import propose_action
 from .improve import collect_signals
+from .learning import add_learning_proposal, high_evidence, normalize_evidence
 from .ledger import ledger_rows, ledger_summary
 from .memory import memory_search, memory_status, memory_write_note
-from .skills import create_skill
 from .util import slugify, utc_stamp, write_json
 from .workspace import Workspace
 
@@ -50,22 +50,58 @@ def run_morpheus(workspace: Workspace, *, dry_run: bool = False) -> dict[str, An
     snapshot = gather_nightly_context(workspace)
     actions: list[dict[str, Any]] = []
     if not dry_run:
-        note = memory_write_note(
-            workspace,
-            f"Morpheus self-improvement {datetime.now().strftime('%Y-%m-%d')}",
-            render_morpheus_memory(snapshot),
-            kind="runs",
-            note_type="run",
-            tags=["morpheus", "self-improvement"],
-            links=["Birkin Ledger", "Birkin Skills"],
-            confidence=0.75,
-            sources=["morpheus"],
-            append=True,
-        )
-        actions.append({"type": "memory", "path": str(note.path)})
-        skill_path = ensure_morpheus_skill(workspace, snapshot)
-        if skill_path:
-            actions.append({"type": "skill", "path": str(skill_path)})
+        evidence = morpheus_evidence(snapshot)
+        confidence = morpheus_confidence(snapshot)
+        body = render_morpheus_memory(snapshot)
+        title = f"Morpheus self-improvement {datetime.now().strftime('%Y-%m-%d')}"
+        if high_evidence(workspace, confidence, evidence):
+            note = memory_write_note(
+                workspace,
+                title,
+                body,
+                kind="runs",
+                note_type="workflow",
+                tags=["morpheus", "self-improvement"],
+                links=["Birkin Ledger", "Birkin Skills"],
+                confidence=confidence,
+                sources=[item["ref"] for item in evidence],
+                evidence=evidence,
+                scope={"project": workspace.root.name, "profile": "morpheus"},
+                agent="morpheus",
+                reason="high-evidence Morpheus review",
+                append=True,
+            )
+            actions.append({"type": "memory", "path": str(note.path), "evidence": len(evidence), "confidence": confidence})
+        else:
+            proposal = add_learning_proposal(
+                workspace,
+                target_type="memory",
+                target=title,
+                action="morpheus-memory-write",
+                before="",
+                after=body,
+                evidence=evidence,
+                confidence=confidence,
+                scope={"project": workspace.root.name, "profile": "morpheus"},
+                agent="morpheus",
+                reason="Morpheus evidence below safe apply threshold",
+                risk_tier="review",
+                apply_payload={
+                    "kind": "memory-note",
+                    "title": title,
+                    "body": body,
+                    "memoryKind": "runs",
+                    "noteType": "workflow",
+                    "tags": ["morpheus", "self-improvement"],
+                    "links": ["Birkin Ledger", "Birkin Skills"],
+                    "append": True,
+                    "scope": {"project": workspace.root.name, "profile": "morpheus"},
+                },
+            )
+            actions.append({"type": "learning-proposal", "id": proposal.id, "target": proposal.target})
+        skill_proposal = ensure_morpheus_skill(workspace, snapshot)
+        if skill_proposal:
+            actions.append(skill_proposal)
         if not schedule_exists(workspace):
             proposal = propose_action(
                 workspace,
@@ -74,6 +110,7 @@ def run_morpheus(workspace: Workspace, *, dry_run: bool = False) -> dict[str, An
                 description="Enable the portable daemon to run the Morpheus review at 04:00.",
                 payload={"name": "birkin-morpheus", "hour": 4, "minute": 0, "action": "morpheus", "payload": {"dryRun": True}},
                 origin="morpheus",
+                evidence=evidence,
             )
             actions.append({"type": "approval", "proposal": proposal})
 
@@ -88,6 +125,21 @@ def run_morpheus(workspace: Workspace, *, dry_run: bool = False) -> dict[str, An
     path = workspace.rel("runs", f"{utc_stamp()}_morpheus.json")
     write_json(path, result)
     result["record"] = str(path)
+    try:
+        from .reliability import log_reliability_event
+
+        log_reliability_event(
+            workspace,
+            stage="agent",
+            status=result["status"],
+            trace_id=path.stem,
+            resource="morpheus",
+            message=result["summary"],
+            evidence=morpheus_evidence(snapshot),
+            metadata={"actions": actions},
+        )
+    except Exception:
+        pass
     return result
 
 
@@ -118,7 +170,7 @@ def gather_nightly_context(workspace: Workspace) -> dict[str, Any]:
             )
     memory = memory_status(workspace)
     memory_hits = memory_search(workspace, "USER_CORRECTION LESSON FAILED error feedback", limit=10)
-    signals = collect_signals(workspace)[:20]
+    signals = signal_rows(collect_signals(workspace)[:20])
     changed = list_changed_files(workspace)
     ledger = ledger_summary(workspace)
     return {
@@ -163,7 +215,10 @@ def render_morpheus_memory(snapshot: dict[str, Any]) -> str:
     lines.append("")
     lines.append("## Signals")
     for item in snapshot.get("signals") or []:
-        lines.append(f"- {item.get('source')}: {item.get('text')}")
+        if isinstance(item, dict):
+            lines.append(f"- {item.get('source')}: {item.get('text')}")
+        else:
+            lines.append(f"- {item}")
     lines.append("")
     lines.append("## Changed Files")
     for item in snapshot.get("changedFiles") or []:
@@ -177,15 +232,69 @@ def ensure_morpheus_skill(workspace: Workspace, snapshot: dict[str, Any]):
         return None
     name = "morpheus lessons"
     path = workspace.rel("skills", "morpheus", slugify(name), "SKILL.md")
-    if path.exists():
-        text = path.read_text(encoding="utf-8")
-        addition = "\n## Latest Signals\n\n" + "\n".join(
-            f"- {item.get('text')}" for item in signals[:5] if isinstance(item, dict)
-        ) + "\n"
-        if "## Latest Signals" not in text:
-            path.write_text(text.rstrip() + "\n" + addition, encoding="utf-8")
-        return path
-    return create_skill(workspace, name, "Apply recurring lessons detected by the Morpheus self-improvement pass.", "morpheus")
+    before = path.read_text(encoding="utf-8") if path.exists() else ""
+    if before:
+        header = ""
+    else:
+        header = f"""---
+name: {slugify(name)}
+description: Apply recurring lessons detected by the Morpheus self-improvement pass.
+version: 0.1.0
+permissions: {{"tools": [], "resources": ["workspace"], "approval": "review"}}
+metadata: {{"birkin": {{"author": "morpheus", "source": "generated-proposal", "tests": ["birkin-codex skills validate"], "lastVerified": "", "immutable": false}}, "openclaw": {{"alwaysInclude": true}}}}
+---
+
+# {name}
+"""
+    addition = "\n## Latest Signals\n\n" + "\n".join(
+        f"- {item.get('text')}" for item in signals[:5] if isinstance(item, dict)
+    ) + "\n"
+    after = (before.rstrip() if before else header.rstrip()) + "\n\n" + addition
+    proposal = add_learning_proposal(
+        workspace,
+        target_type="skill",
+        target=name,
+        action="morpheus-skill-update",
+        before=before,
+        after=after,
+        evidence=morpheus_evidence(snapshot),
+        confidence=morpheus_confidence(snapshot),
+        scope={"project": workspace.root.name, "profile": "morpheus"},
+        agent="morpheus",
+        reason="Morpheus skill updates require proposal approval",
+        risk_tier="review",
+        apply_payload={"kind": "file-replace", "path": str(path.relative_to(workspace.root)), "content": after},
+    )
+    return {"type": "learning-proposal", "id": proposal.id, "target": proposal.target}
+
+
+def signal_rows(signals: list[str]) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for signal in signals:
+        source, text = signal.split(":", 1) if ":" in signal else ("memory/lessons.md", signal)
+        rows.append({"source": source.strip(), "text": text.strip()})
+    return rows
+
+
+def morpheus_evidence(snapshot: dict[str, Any]) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for run in snapshot.get("runs") or []:
+        if isinstance(run, dict) and run.get("record"):
+            rows.append({"type": "run", "ref": str(run["record"])})
+    for signal in snapshot.get("signals") or []:
+        if isinstance(signal, dict):
+            rows.append({"type": "feedback", "ref": str(signal.get("source") or "memory/lessons.md"), "note": str(signal.get("text") or "")[:160]})
+    for changed in snapshot.get("changedFiles") or []:
+        rows.append({"type": "file", "ref": str(changed)})
+    return normalize_evidence(rows or [{"type": "run", "ref": "morpheus"}])
+
+
+def morpheus_confidence(snapshot: dict[str, Any]) -> float:
+    signals = len(snapshot.get("signals") or [])
+    runs = len(snapshot.get("runs") or [])
+    changed = len(snapshot.get("changedFiles") or [])
+    score = 0.55 + min(0.2, signals * 0.03) + min(0.1, runs * 0.01) + min(0.05, changed * 0.01)
+    return min(0.92, score)
 
 
 def schedule_exists(workspace: Workspace) -> bool:

@@ -26,23 +26,39 @@ Morpheus self-improvement, a machine-facing gateway, and a local SaaS-style dash
   queue file writes, queue shell/web/Telegram/schedule actions, and spawn scoped
   packet-only subagents.
 - Approval gate: `birkin-codex approvals list|approve|reject`; pending approvals are
-  stored under `approvals/pending` and history under `approvals/history`.
-- Memory: semantic Obsidian markdown under `memory/obsidian-vault`, preserving folders
-  `Birkin/Conversations`, `Birkin/Feedback`, `Birkin/Errors`, and `Birkin/Runs`.
-  Notes include `kind`, `type`, `created`, `updated`, `confidence`, `sources`, `tags`,
+  stored under `approvals/pending` and history under `approvals/history`. Approval rows
+  now include risk tier, evidence count, affected resources, dry-run preview, and
+  rollback hint.
+- Verified Learning Loop: `src/birkin_agent/learning.py` records evidence-backed memory,
+  skill, and self-improvement events under `learning/events.jsonl` and reviewable
+  proposals under `learning/proposals`. CLI commands include
+  `learning list|events|show|approve|reject|rollback`.
+- Memory OS: typed, scoped, versioned Obsidian markdown under `memory/obsidian-vault`,
+  preserving old folders and adding User, Project, Environment, Workflow, Ephemeral, and
+  Negative memory folders. Notes include `kind`, `type`, `version`, `scope`,
+  `confidence`, `sources`, `evidence`, `ttlDays`, `expires`, `author`, `agent`,
+  `reason`, `blame`, append-only `memory/history.jsonl`, negative-memory revalidation,
   and Obsidian `[[wikilink]]` support.
 - Ledger: `usage/ledger.jsonl` for run status, estimated tokens, provider token fields,
   and cost fields.
+- Reliability control plane: `src/birkin_agent/reliability.py` writes
+  `reliability/events.jsonl`, exposes health checks, trace rows, delivery rows,
+  silent-failure warnings, and per-run/daily/monthly token budget status.
 - Telegram: env-only bot token config, explicit test-send, and optional inbound polling.
   Runtime-requested outbound sends go through approvals.
 - Morpheus: `birkin-codex morpheus --dry-run` and daemon support for the 04:00
-  self-improvement review.
+  self-improvement review. Morpheus applies only high-evidence safe memory updates; weak
+  evidence and all skill updates become verified-learning proposals.
 - Gateway: `birkin-codex gateway run --port 8770`, serving local HTTP status, model,
-  auth, API, memory, ledger, Telegram, approvals, schedules, daemon, Morpheus, chat, and
-  run routes. Gateway token behavior remains localhost/token based.
+  auth, API, memory, ledger, learning, reliability, Telegram, approvals, schedules,
+  daemon, Morpheus, chat, and run routes. Gateway token behavior remains localhost/token
+  based.
 - Web UI: `birkin-codex web --port 8765`, showing jobs, summaries, status, usage,
-  warnings, models, auth, API, gateway, memory, ledger, Telegram, approvals, Morpheus,
-  schedules, skills, agents, setup, and chat.
+  warnings, models, auth, API, gateway, memory, ledger, Telegram, approvals, learning,
+  reliability, Morpheus, schedules, skills, agents, setup, and chat.
+- Skill safety: `birkin-codex skills safety` lists permission manifest, version,
+  author/source, computed hash, tests, last verified, immutable status, and path.
+  `skills config` now includes registry consistency and skill-safety rows.
 - Setup wizard: model selection, Obsidian vault setup, Telegram onboarding, and optional
   Telegram inbound.
 - Default agents: planner, builder, reviewer, researcher, operator, and chat.
@@ -73,29 +89,28 @@ Kept different:
 - `py -m pip install -e .`: passed. The Python script directory is not on this shell's
   PATH, so CLI smoke commands prepended the installed Scripts directory for this session.
 - `py -m compileall -q src tests tools`: passed.
-- `py -m unittest discover -s tests`: 23 tests passed.
+- `py -m unittest discover -s tests`: 27 tests passed.
 - `git diff --check -- . ':!skills/upstream'`: passed.
 - `birkin-codex doctor`: `ok` with expected warnings for missing `OPENAI_API_KEY` and
   Telegram not enabled.
 - `birkin-codex skills validate`: `ok`.
-- `birkin-codex setup --json`: passed with warning status for optional setup items.
 - `birkin-codex skills config --json`: passed; upstream mirror check reports 147
-  mirrored upstream skills and 0 missing directories.
+  mirrored upstream skills and 0 missing directories. Registry consistency and
+  skill-safety checks are `ok`.
+- `birkin-codex skills safety --json`: passed.
 - `birkin-codex morpheus --dry-run --json`: passed and wrote a Morpheus run record.
+- `birkin-codex learning list --json`: passed.
+- `birkin-codex learning events --json`: passed.
+- `birkin-codex reliability health --json`: passed with expected warnings for optional
+  Morpheus daemon, Telegram, and API key setup.
+- `birkin-codex reliability budget --json`: passed.
 - `birkin-codex approvals list --json`: passed.
-- `birkin-codex daemon status --json`: passed.
-- `birkin-codex model list --json`: shows `api-agent` using the `tool-agent` runner.
-- `birkin-codex memory write-note ...` and `birkin-codex memory search Morpheus --json`:
-  passed; the note includes an Obsidian wikilink.
-- `birkin-codex memory status --json`: passed with one smoke note and one linked note.
-- `birkin-codex ledger summary --json`: passed.
-- `birkin-codex telegram status --json`: passed.
-- Dashboard smoke on `127.0.0.1:8767`: status API included Morpheus and approvals; HTML
-  contained `Morpheus` and did not contain the old label; `POST /api/morpheus` returned
-  dry-run status.
-- Gateway smoke on `127.0.0.1:8771`: `/health` returned `ok`; `POST /api/morpheus`
-  returned dry-run status.
-- Code review note: `reviews/2026-05-28-runtime-approval-morpheus-review.md`.
+- `birkin-codex gateway status --json`: passed and includes learning/reliability routes.
+- Dashboard smoke on `127.0.0.1:8768`: `/api/status` included learning proposals,
+  reliability log, traces, health, and budget fields.
+- Gateway smoke on `127.0.0.1:8772`: `/health`, `/api/reliability`, and `/api/learning`
+  passed.
+- Code review note: `reviews/2026-05-28-verified-learning-reliability-review.md`.
 
 ## Git Target
 

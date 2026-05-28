@@ -21,6 +21,13 @@ from birkin_agent.cli import main as cli_main
 from birkin_agent.dashboard import dashboard_data
 from birkin_agent.gateway import GatewayHandler
 from birkin_agent.improve import append_lesson, apply_improvement, propose_improvement
+from birkin_agent.learning import (
+    add_learning_proposal,
+    approve_learning,
+    learning_event_rows,
+    learning_proposal_rows,
+    rollback_learning,
+)
 from birkin_agent.ledger import ledger_rows, ledger_summary
 from birkin_agent.memory import (
     memory_get_note,
@@ -33,8 +40,9 @@ from birkin_agent.memory import (
 )
 from birkin_agent.models import render_model_command, resolve_model_profile, use_model_profile, validate_models
 from birkin_agent.morpheus import run_morpheus
+from birkin_agent.reliability import budget_status, health_checks, reliability_rows, trace_rows
 from birkin_agent.setup import setup_report
-from birkin_agent.skills import create_skill, discover_skills, skill_config_rows, validate_skills
+from birkin_agent.skills import create_skill, discover_skills, immutable_skill, skill_config_rows, skill_safety_rows, validate_skills
 from birkin_agent.telegram import configure_telegram, telegram_status, validate_telegram
 from birkin_agent.web import Handler
 from birkin_agent.wizard import setup_wizard
@@ -412,6 +420,86 @@ class WorkspaceTest(unittest.TestCase):
         found = memory_search(workspace, "API Gateway")
         self.assertTrue(found)
 
+    def test_memory_os_metadata_filters_version_and_history(self) -> None:
+        workspace = self.make_workspace()
+        first = memory_write_note(
+            workspace,
+            "Scoped Negative Memory",
+            "Playwright failed because the binary was unavailable in this environment.",
+            kind="negative",
+            note_type="negative",
+            tags=["playwright"],
+            sources=["run:unit-run-1"],
+            evidence=[{"type": "run", "ref": "runs/unit-run-1.json"}],
+            confidence=0.91,
+            ttl_days=7,
+            scope={"project": "unit", "machine": "windows", "profile": "tester"},
+            agent="unit-test",
+            reason="verify typed scoped memory",
+        )
+        self.assertTrue(first.path.exists())
+        note = memory_get_note(workspace, "Scoped Negative Memory")
+        self.assertEqual(note["type"], "negative")
+        self.assertEqual(note["kind"], "negative")
+        self.assertEqual(note["version"], "1")
+        self.assertIn('"project": "unit"', note["scope"])
+        self.assertIn("runs/unit-run-1.json", note["evidence"])
+        filtered = memory_search(
+            workspace,
+            "Playwright",
+            note_type="negative",
+            scope="windows",
+            min_confidence=0.9,
+            tag="playwright",
+            source="unit-run-1",
+        )
+        self.assertTrue(filtered)
+        second = memory_write_note(
+            workspace,
+            "Scoped Negative Memory",
+            "Revalidate before preserving this negative memory.",
+            kind="negative",
+            note_type="negative",
+            evidence=[{"type": "test", "ref": "tests/test_birkin.py"}],
+            expected_version=1,
+            append=True,
+        )
+        self.assertTrue(second.path.exists())
+        self.assertEqual(memory_get_note(workspace, "Scoped Negative Memory")["version"], "2")
+        self.assertTrue((workspace.root / "memory" / "history.jsonl").exists())
+        self.assertTrue(learning_event_rows(workspace))
+
+    def test_learning_proposal_approval_and_rollback(self) -> None:
+        workspace = self.make_workspace()
+        proposal = add_learning_proposal(
+            workspace,
+            target_type="memory",
+            target="Approved Memory",
+            action="memory-write",
+            before="",
+            after="Approved through verified learning.",
+            evidence=[{"type": "feedback", "ref": "manual"}],
+            confidence=0.92,
+            reason="unit-test proposal",
+            apply_payload={
+                "kind": "memory-note",
+                "title": "Approved Memory",
+                "body": "Approved through verified learning.",
+                "memoryKind": "feedback",
+                "noteType": "feedback",
+                "tags": ["learning"],
+            },
+        )
+        self.assertEqual(len(learning_proposal_rows(workspace)), 1)
+        result = approve_learning(workspace, proposal.id)
+        self.assertEqual(result["status"], "approved")
+        self.assertIn("Approved through verified learning", memory_get_note(workspace, "Approved Memory")["body"])
+        events = learning_event_rows(workspace)
+        self.assertTrue(events)
+        memory_write_event = next(row for row in events if row["action"] == "memory-write")
+        rollback = rollback_learning(workspace, memory_write_event["id"])
+        self.assertIn("removed", rollback["result"])
+
     def test_approvals_queue_and_resolve_file_write(self) -> None:
         workspace = self.make_workspace()
         proposed = propose_action(
@@ -425,12 +513,16 @@ class WorkspaceTest(unittest.TestCase):
         self.assertEqual(proposed["status"], "pending")
         rows = approval_rows(workspace)
         self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["riskTier"], "review")
+        self.assertIn("approved/smoke.txt", rows[0]["resources"])
+        self.assertIn("write approved/smoke.txt", rows[0]["dryRun"])
         from birkin_agent.approvals import approve
 
         result = approve(workspace, rows[0]["id"])
         self.assertIn("wrote approved", result["result"])
         self.assertEqual((workspace.root / "approved" / "smoke.txt").read_text(encoding="utf-8"), "approved")
         self.assertEqual(approval_rows(workspace), [])
+        self.assertTrue(reliability_rows(workspace))
 
     def test_morpheus_dry_run_no_key(self) -> None:
         workspace = self.make_workspace()
@@ -438,6 +530,15 @@ class WorkspaceTest(unittest.TestCase):
         self.assertEqual(result["status"], "dry-run")
         self.assertTrue(Path(result["record"]).exists())
         self.assertIn("recent runs", result["summary"])
+
+    def test_morpheus_weak_learning_becomes_proposal(self) -> None:
+        workspace = self.make_workspace()
+        append_lesson(workspace, "LESSON: remember weak signals as proposals.", "morpheus-lessons")
+        result = run_morpheus(workspace, dry_run=False)
+        self.assertEqual(result["status"], "ok")
+        proposals = learning_proposal_rows(workspace)
+        self.assertTrue(proposals)
+        self.assertTrue(any(row["targetType"] in {"memory", "skill"} for row in proposals))
 
     def test_setup_wizard_model_memory_and_telegram(self) -> None:
         workspace = self.make_workspace()
@@ -492,9 +593,31 @@ class WorkspaceTest(unittest.TestCase):
         self.assertIn("ledgerRows", data)
         self.assertIn("setup", data)
         self.assertIn("skillConfig", data)
+        self.assertIn("learningProposals", data)
+        self.assertIn("learningEvents", data)
+        self.assertIn("reliability", data)
+        self.assertIn("traces", data)
+        self.assertIn("health", data)
+        self.assertIn("budget", data)
+        self.assertIn("skillSafety", data)
         self.assertGreaterEqual(data["metrics"]["modelsTotal"], 4)
         self.assertGreaterEqual(data["metrics"]["authProfiles"], 2)
         self.assertGreaterEqual(data["metrics"]["apiProfiles"], 2)
+        self.assertTrue(trace_rows(workspace))
+        self.assertTrue(health_checks(workspace))
+        self.assertIn("daily", budget_status(workspace))
+
+    def test_skill_safety_rows_and_upstream_immutability(self) -> None:
+        workspace = self.make_workspace()
+        rows = {row["name"]: row for row in skill_safety_rows(workspace)}
+        self.assertIn("hermes-test-driven-development", rows)
+        self.assertEqual(rows["hermes-test-driven-development"]["immutable"], "yes")
+        self.assertTrue(rows["hermes-test-driven-development"]["hash"])
+        records = {skill.name: skill for skill in discover_skills(workspace)}
+        self.assertTrue(immutable_skill(workspace, records["hermes-test-driven-development"].path))
+        config = {row["check"]: row for row in skill_config_rows(workspace)}
+        self.assertIn("registry-consistency", config)
+        self.assertIn("skill-safety", config)
 
     def test_validate_agents_reports_missing_allowlist_skills(self) -> None:
         workspace = self.make_workspace()
@@ -546,6 +669,11 @@ class WorkspaceTest(unittest.TestCase):
         self.assertIn("setup", status)
         self.assertIn("skillConfig", status)
         self.assertIn("approvals", status)
+        self.assertIn("learningProposals", status)
+        self.assertIn("reliability", status)
+        self.assertIn("traces", status)
+        self.assertIn("health", status)
+        self.assertIn("budget", status)
         self.assertIn("morpheus", status)
         self.assertIn("daemon", status)
         self.assertIn("schedules", status)
@@ -637,6 +765,15 @@ class WorkspaceTest(unittest.TestCase):
         with urlopen(f"http://{host}:{port}/api/ledger", timeout=5) as response:
             ledger = json.loads(response.read().decode("utf-8"))
         self.assertIn("ledger", ledger)
+
+        with urlopen(f"http://{host}:{port}/api/learning", timeout=5) as response:
+            learning = json.loads(response.read().decode("utf-8"))
+        self.assertIn("proposals", learning)
+
+        with urlopen(f"http://{host}:{port}/api/reliability", timeout=5) as response:
+            reliability = json.loads(response.read().decode("utf-8"))
+        self.assertIn("health", reliability)
+        self.assertIn("budget", reliability)
 
         with urlopen(f"http://{host}:{port}/api/memory", timeout=5) as response:
             memory = json.loads(response.read().decode("utf-8"))

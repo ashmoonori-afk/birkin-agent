@@ -22,6 +22,8 @@ Open `http://127.0.0.1:8765`.
 - Auth, API, and gateway tabs for integration status.
 - Memory, ledger, and Telegram tabs for onboarding and durable status.
 - Approval, Morpheus, daemon, and schedule status.
+- Verified-learning proposals and recent learning events.
+- Reliability health, budget, trace timeline, delivery records, and reliability log.
 - Setup and skill config tabs for readiness verification.
 - Chat tab for message-oriented agent runs.
 - Warnings in a separate panel.
@@ -40,6 +42,9 @@ The dashboard reads:
   config, and allowlists.
 - `/api/chat` for chat messages through the selected agent and model profile.
 - `/api/approvals` for approval list/approve/reject actions.
+- `/api/learning` for learning proposal list/approve/reject actions.
+- `learning/events.jsonl` and `learning/proposals/` for verified-learning state.
+- `reliability/events.jsonl` for trace, delivery, and reliability log rows.
 - `/api/morpheus` for manual Morpheus dry-runs from the dashboard.
 - `/api/status` for setup and skill config status shown in the dashboard tabs.
 - `memory/`, `reviews/`, and `runs/` for improvement signals.
@@ -48,5 +53,17 @@ The dashboard reads:
 
 Warnings are separate from job results. They include workspace doctor warnings, skill
 validation warnings, model profile warnings, auth/API/gateway warnings, pending
-approvals, agent allowlist warnings, and gated skills such as missing environment
-variables or missing config.
+approvals, pending learning proposals, budget warnings, delivery failures, agent
+allowlist warnings, and gated skills such as missing environment variables or missing
+config.
+
+## Control Plane Sections
+
+The dashboard is intended to answer operational questions quickly:
+
+- What is running now?
+- What did the latest job return?
+- Which action needs approval?
+- Which learning proposal would change memory or skills?
+- Did Telegram, gateway, Morpheus, memory, ledger, model/API profiles, or delivery fail?
+- How close is the workspace to configured per-run, daily, or monthly token budgets?

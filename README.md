@@ -11,57 +11,33 @@
 
 # Birkin Agent
 
-Birkin is a lightweight Python agent workspace inspired by the direction of
+Birkin is a verified-learning, reliability-first agent OS inspired by the direction of
 [Hermes Agent](https://github.com/NousResearch/hermes-agent) and
 [OpenClaw](https://github.com/openclaw/openclaw).
 
-It is built for people who want the core agent-workspace primitives without installing a
-full personal assistant stack: `SKILL.md` skills, scoped subagents, dry-run prompt packets,
-self-improvement proposals, and a local operations dashboard.
+It is built around one product rule: Birkin should not learn wrong things, should not
+silently fail, and should act through approval-first governance.
 
-Birkin is not a fork of Hermes Agent or OpenClaw. It does not vendor their runtime code.
-It uses their public repositories as product and architecture references, then keeps the
-implementation small and inspectable.
+Birkin is not a fork of Hermes Agent or OpenClaw. It uses their public repositories as
+product and architecture references while keeping the Python implementation small,
+inspectable, and portable across Windows, macOS, and Linux.
 
 ## What It Does
 
 | Area | Birkin behavior |
 | --- | --- |
-| Skills | Indexes AgentSkills-style `SKILL.md` folders with metadata, precedence, validation, and gating. |
-| Hermes coverage | Mirrors all 90 Hermes bundled skill directories and exposes `hermes-<name>` skills with exact upstream source pointers. |
-| OpenClaw coverage | Mirrors all 57 OpenClaw upstream skill directories and exposes `openclaw-<name>` skills with exact upstream source pointers. |
-| Model selection | Provides Hermes-style model profiles for packet-only runs, Codex CLI, OpenAI-compatible APIs, or any local CLI argv template. |
-| Tool runtime | Adds an OpenAI-compatible tool-calling agent profile for skill loading, memory, filesystem reads, scoped subagents, and approval-gated actions. |
-| Auth | Delegates local CLI OAuth/login state to tools such as `codex` without storing tokens in Birkin. |
-| API | Calls OpenAI-compatible chat completions endpoints when an API model profile is selected and executed. |
-| Gateway | Serves a local machine-facing HTTP gateway for status, auth, model, API, approval, Morpheus, and run operations. |
-| Approvals | Queues shell, web, Telegram, scheduling, and model-requested file writes until the user approves them. |
-| Memory | Writes semantic linked markdown notes to an Obsidian-compatible vault and recalls matching notes into chat prompts. |
-| Ledger | Maintains `usage/ledger.jsonl` for run status, estimated tokens, provider tokens, and cost fields. |
-| Telegram | Provides setup onboarding, explicit test-send support, and optional inbound long-polling without storing bot tokens. |
-| Morpheus | Provides a manual Morpheus command and portable daemon status for 04:00 self-improvement passes. |
-| Setup | Reports Hermes-style readiness across workspace, models, auth, API, gateway, approvals, Morpheus, skills, agents, and chat. |
-| Chat | Provides a dashboard chat tab, one-shot `birkin-codex chat`, and Hermes-style `birkin-codex` interactive chat. |
-| Subagents | Builds role-scoped prompt packets for planner, builder, reviewer, researcher, and operator agents. |
-| Self-improvement | Records lessons, proposes skill patches, and applies approved improvements. |
-| CLI | Runs as `birkin-codex` after install, `python -m birkin_agent`, `scripts/birkin-codex`, or `scripts/birkin-codex.ps1`. `birkin` remains a compatibility alias. |
-| Dashboard | Shows jobs, result summaries, status, estimated usage, warnings, skills, and agents at `http://127.0.0.1:8765`. |
-
-## Why This Exists
-
-Hermes Agent is a broad self-improving assistant with model routing, messaging gateways,
-terminal backends, memory, scheduled automation, subagents, and a full learning loop.
-OpenClaw is a local-first personal assistant with many channel, app, node, canvas, and
-tool skills.
-
-Birkin takes the parts that are useful for a small agent workspace:
-
-- Skills as procedural memory.
-- Subagent prompt packets.
-- Run records that can be reviewed.
-- Proposal-mode learning instead of silent mutation.
-- A dashboard for current jobs and warnings.
-- A Python-only core that can run on macOS, Linux, or Windows.
+| CLI | Runs as `birkin-codex`; no arguments open the Hermes-style interactive chat CLI. |
+| Dashboard | Serves a SaaS-style control plane at `http://127.0.0.1:8765`. |
+| Skills | Indexes `SKILL.md` folders with precedence, gating, registry checks, safety metadata, and immutable upstream mirrors. |
+| Hermes/OpenClaw mirrors | Mirrors 90 Hermes skill directories and 57 OpenClaw skill directories, with 147 mirrored upstream skills and 0 missing directories. |
+| Model selection | Supports packet-only, local CLI, OpenAI-compatible API, and tool-agent profiles without code changes. |
+| Auth/API/Gateway | Delegates local CLI OAuth to external tools, supports API-key profiles, and exposes a localhost/token-gated gateway. |
+| Memory OS | Stores typed, scoped, versioned Obsidian markdown notes with evidence, confidence, TTL, and append-only history. |
+| Verified Learning | Records evidence-backed learning events and proposal-mode changes with approve/reject/rollback commands. |
+| Approvals | Risk-tiers shell, external web, Telegram, scheduling, file writes/deletes, and other consequential actions. |
+| Reliability | Logs trace events, delivery results, health checks, silent-failure warnings, and token budget status. |
+| Telegram | Supports onboarding, explicit test sends, and optional inbound polling without storing bot tokens. |
+| Morpheus | Runs conservative self-improvement review; weak evidence becomes proposals instead of silent mutation. |
 
 ## Quick Start
 
@@ -87,31 +63,11 @@ birkin-codex setup
 birkin-codex
 ```
 
-Start the dashboard when you want the SaaS-style job and chat UI:
+Start the dashboard:
 
 ```sh
 birkin-codex web --port 8765
 ```
-
-Open:
-
-```text
-http://127.0.0.1:8765
-```
-
-## Install as a CLI
-
-```sh
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install -e .
-birkin-codex
-birkin-codex doctor
-birkin-codex skills validate
-birkin-codex web --port 8765
-```
-
-On Windows, use `.venv\Scripts\activate` and then the same `pip install -e .` flow.
 
 ## Core Commands
 
@@ -120,336 +76,110 @@ birkin-codex
 birkin-codex doctor
 birkin-codex setup
 birkin-codex setup wizard
-birkin-codex skills list
-birkin-codex skills validate
-birkin-codex skills config
-birkin-codex skills create release-checklist --description "Review release readiness."
 birkin-codex model list
 birkin-codex model use codex-local
 birkin-codex auth list
 birkin-codex api list
-birkin-codex memory status
-birkin-codex memory write-note --title "Model Preference" --body "Prefer local CLI first."
-birkin-codex memory link --from-title "Model Preference" --to-title "API Gateway"
-birkin-codex ledger summary
-birkin-codex telegram status
-birkin-codex gateway routes
-birkin-codex approvals list
-birkin-codex morpheus --dry-run
-birkin-codex daemon status
-birkin-codex agents list
-birkin-codex agents packet planner --model packet --task "Plan the work"
-birkin-codex agents run builder --model codex-local --task "Prepare the implementation"
-birkin-codex chat --message "Summarize this workspace" --model packet
-birkin-codex improve record --lesson "LESSON: Validate skills before running an agent." --skill skill-authoring
-birkin-codex improve propose
-birkin-codex web --port 8765
-```
-
-## Dashboard
-
-The Web UI is a SaaS-style operator dashboard. It is meant for repeated work, not a
-marketing page.
-
-It shows:
-
-- Running jobs.
-- Recent job results.
-- Result summaries.
-- Status counts.
-- Estimated prompt usage.
-- Selectable model profiles.
-- Auth, API, and gateway status.
-- Obsidian memory, Telegram onboarding, and usage ledger status.
-- Pending approvals with approve/reject controls.
-- Morpheus, daemon, and schedule status.
-- Setup readiness and skill config status.
-- Chat messages through the selected agent and model.
-- Enabled and gated skills.
-- Agents and their skill allowlists.
-- Warnings in a separate panel.
-
-## Skill System
-
-Skills live under:
-
-- `skills/<group>/<skill>/SKILL.md`
-- `.agents/skills/<skill>/SKILL.md`
-- `managed-skills/<skill>/SKILL.md`
-- `bundled-skills/<skill>/SKILL.md`
-
-Earlier roots win when names conflict. A skill may include `references/`, `templates/`,
-`scripts/`, and `assets/`, but Birkin indexes only `SKILL.md` by default.
-
-Birkin ships with:
-
-- Core skills for skill authoring, memory recall, subagents, and self-improvement.
-- Tool skills for filesystem, shell, web research, browser automation, scheduling, and messaging gateways.
-- Development skills for code review, GitHub, documentation, data analysis, and security audit.
-- Creative and integration skills.
-- 90 Hermes bundled skill reflections under `skills/hermes-reflections/`, backed by exact mirrored source under `skills/upstream/hermes/`.
-- 57 OpenClaw reflection skills under `skills/openclaw-reflections/`, backed by exact mirrored source under `skills/upstream/openclaw/`.
-
-See [Hermes Skill Reflection Map](docs/hermes-skill-map.md) and
-[OpenClaw Skill Reflection Map](docs/openclaw-skill-map.md).
-
-## Model and Runner Selection
-
-The default model profile is `packet`. It writes a run record and prompt packet without
-calling a model. This mirrors the Hermes split between terminal model setup and per-run
-model switching, but keeps the implementation local and inspectable. Birkin supports
-packet-only, local CLI, OpenAI-compatible API, and OpenAI-compatible tool-agent runners.
-
-List and choose model profiles:
-
-```sh
-birkin-codex model list
-birkin-codex model use packet
-birkin-codex model use codex-local
-birkin-codex model use api-openai
-birkin-codex model use api-agent
-```
-
-Run with an explicit model profile:
-
-```sh
-birkin-codex agents run builder --model codex-local --execute --task "Implement the change"
-birkin-codex agents run builder --model api-agent --execute --task "Use tools when useful"
-```
-
-The `api-agent` profile is the real tool-calling runtime. It can load skills, search and
-write semantic memory, read and list workspace files, and spawn packet-only scoped
-subagents. Consequential tools do not run immediately: shell commands, external web
-fetches, Telegram sends, schedules, and model-requested file writes are queued under
-`birkin-codex approvals list`.
-
-Configure local CLI profiles in `birkin.json`:
-
-```json
-{
-  "models": {
-    "default": "packet",
-    "profiles": {
-      "codex-local": {
-        "provider": "openai-codex-cli",
-        "model": "gpt-5.5",
-        "runner": "local-cli",
-        "command": ["codex", "exec", "--model", "{model}", "-"],
-        "timeoutSeconds": 1800
-      }
-    }
-  }
-}
-```
-
-You can also add a profile from the local CLI:
-
-```sh
-birkin-codex model add codex-fast \
-  --provider openai-codex-cli \
-  --model gpt-5.5 \
-  --runner local-cli \
-  --command-json '["codex","exec","--model","{model}","-"]'
-```
-
-Keep commands as argv arrays. Do not put shell pipelines or secrets in `birkin.json`.
-
-## Auth, API, and Gateway
-
-Birkin adds Hermes-style integration without storing provider secrets in the workspace.
-Local CLI auth profiles delegate login state to the installed tool:
-
-```sh
-birkin-codex auth list
-birkin-codex auth status codex-cli
-birkin-codex auth login codex-cli
-```
-
-API profiles target OpenAI-compatible chat completions endpoints:
-
-```sh
-birkin-codex api list
-birkin-codex agents run builder --model api-openai --execute --task "Draft the change"
-```
-
-The gateway is separate from the dashboard UI and exposes local HTTP routes for status,
-models, auth, API profiles, and run creation:
-
-```sh
-birkin-codex gateway routes
+birkin-codex gateway status
 birkin-codex gateway run --port 8770
-```
-
-See [Auth, API, and Gateway](docs/auth-api-gateway.md).
-
-## Memory, Ledger, and Telegram
-
-Birkin uses an Obsidian-compatible markdown vault for durable memory. By default it
-writes inside `memory/obsidian-vault`, which can be opened as an Obsidian vault or
-changed with:
-
-```sh
-birkin-codex memory set-vault /path/to/vault --allow-external
-birkin-codex memory record --kind feedback --text "USER_CORRECTION: prefer short Korean status updates."
-birkin-codex memory recall "Korean status updates"
-birkin-codex memory write-note --title "User Preference" --body "Keep status updates short." --type preference --confidence 0.9 --tag preference --source manual
-birkin-codex memory get-note "User Preference"
-birkin-codex memory link --from-title "User Preference" --to-title "Korean Status"
-```
-
-Memory notes preserve the existing folders `Birkin/Conversations`, `Birkin/Feedback`,
-`Birkin/Errors`, and `Birkin/Runs`. Each note includes frontmatter fields for `kind`,
-`type`, `created`, `updated`, `confidence`, `sources`, and `tags`, plus Obsidian
-`[[wikilink]]` relationships when links are supplied.
-
-Each run appends a ledger entry:
-
-```sh
-birkin-codex ledger summary
-birkin-codex ledger list
-```
-
-Telegram onboarding records the bot token environment variable and chat id without
-storing the token:
-
-```sh
-birkin-codex telegram setup --chat-id 123456 --token-env TELEGRAM_BOT_TOKEN --enable
-birkin-codex telegram setup --chat-id 123456 --token-env TELEGRAM_BOT_TOKEN --enable --enable-inbound
-birkin-codex telegram test --message "Birkin is connected."
-```
-
-Outbound Telegram from the CLI test command is explicitly user-triggered. Outbound
-Telegram requested by the tool-agent runtime goes through approvals. Inbound polling is
-opt-in and stores received messages as conversation memory notes.
-
-Approval and Morpheus commands:
-
-```sh
+birkin-codex memory search "model preference" --type preference --scope project
+birkin-codex learning list
+birkin-codex learning events
+birkin-codex learning approve <proposal-id>
+birkin-codex learning rollback <event-id>
 birkin-codex approvals list
-birkin-codex approvals approve <approval-id>
-birkin-codex approvals reject <approval-id>
-birkin-codex morpheus --dry-run
-birkin-codex daemon status
-birkin-codex daemon run --once
-```
-
-The first-run wizard can configure model, memory, and Telegram in one pass:
-
-```sh
-birkin-codex setup wizard
-```
-
-## Setup, Chat, and Skill Config
-
-Hermes-style readiness checks:
-
-```sh
-birkin-codex setup
-birkin-codex setup --json
-```
-
-Skill configuration verification:
-
-```sh
-birkin-codex skills config
+birkin-codex reliability health
+birkin-codex reliability traces
+birkin-codex reliability budget
 birkin-codex skills validate
-```
-
-Dashboard and CLI chat:
-
-```sh
-birkin-codex web --port 8765
+birkin-codex skills config
+birkin-codex skills safety
+birkin-codex morpheus --dry-run
 birkin-codex chat --message "Summarize this workspace" --model packet
 ```
 
-See [Setup, Chat, and Skill Config](docs/setup-chat-skills.md).
+## Implemented
+
+- `birkin-codex` Python/pip CLI with Windows PowerShell and macOS/Linux shell scripts.
+- Dashboard with jobs, summaries, status, usage, warnings, approvals, learning proposals,
+  reliability traces, health, budget, memory, ledger, gateway, Telegram, Morpheus, skills,
+  models, API profiles, auth profiles, agents, and chat.
+- Obsidian-backed Memory OS for User, Project, Environment, Workflow, Ephemeral,
+  Negative, Conversation, Run, Error, and Feedback memories.
+- Scope isolation fields for user, project, machine, channel, thread, and profile.
+- Versioning, optimistic lock support, TTL expiry metadata, negative-memory revalidation,
+  wikilinks, search filters, and append-only `memory/history.jsonl`.
+- Verified Learning Loop with evidence links, confidence, TTL, scope, author/agent,
+  reason, blame, proposal review, approve/reject, and rollback.
+- Approval/risk UX for safe, review, dangerous, external, and irreversible actions.
+- Skill safety rows with permissions, version, author/source, computed hash, tests,
+  last-verified metadata, immutable upstream detection, and registry consistency checks.
+- Morpheus self-improvement that applies only high-evidence safe memory updates and
+  turns weak evidence or skill changes into learning proposals.
+
+## Roadmap
+
+- Korea and East Asia integrations: KakaoTalk, LINE, Naver Works, Channel Talk, local
+  receipt/payment providers, Upstage Solar, HyperCLOVA X, and Kanana routing.
+- Safe skill marketplace with signed packages, permission manifests, regression tests,
+  author/version trust, and approval-first installs.
+- VPS/systemd and serverless supervisors for always-on operation outside the laptop.
+- Additional sandbox backends such as Docker, SSH, Modal, Daytona, Singularity, and
+  Vercel-style isolated workers.
+- Native MCP server mode so Birkin can expose memory, skills, runs, and approvals to
+  other agents.
 
 ## Advantages
 
-- Lightweight: Python standard library core, no service stack required.
-- Inspectable: run records, skill files, and proposals are plain text or JSON.
-- Safer by default: dry-run runner, explicit `--execute`, approval-gated consequential tools, and proposal-mode improvement.
-- Portable: macOS/Linux shell script, Windows PowerShell script, and editable Python install.
-- Model-profile based: switch between packet-only, Codex CLI, OpenAI-compatible API, or a custom local CLI without code changes.
-- Auth-aware: local CLI OAuth is delegated to the tool's own login store instead of saved in Birkin config.
-- Gateway-ready: a local HTTP surface can drive runs and status checks from other tools.
-- Setup-visible: readiness checks expose incomplete auth, API, gateway, skills, agent, or chat configuration.
-- Chat-ready: dashboard and CLI chat reuse the same auditable run records as other agent jobs.
-- Memory-backed: chat and run records can be written to an Obsidian vault and recalled into later chat prompts.
-- Linked memory-backed: notes are semantic markdown with inspectable frontmatter and Obsidian wikilinks.
-- Morpheus-ready: dry-run/no-key Morpheus checks summarize recent runs, memory, ledger, signals, and changed files.
-- Ledger-backed: every run records estimated usage and provider usage fields in `usage/ledger.jsonl`.
-- Hermes-aware: all bundled Hermes skill directories are mirrored and represented as Birkin skills.
-- OpenClaw-aware: every upstream OpenClaw skill directory is mirrored and represented as a Birkin skill.
-- Dashboard-first operations: job status, result summaries, usage, and warnings are visible immediately.
+- Evidence-first learning: memory and skill changes can be traced to conversation, run,
+  file, test, approval, or feedback evidence.
+- Safer autonomy: consequential actions are queued with risk, resources, dry-run preview,
+  rollback hints, and approval history.
+- Reliability-first operations: traces, health checks, delivery logs, budget warnings,
+  and dashboard warnings make silent failure visible.
+- Portable core: the package uses Python and pip, with no service stack required for the
+  local CLI and dashboard.
+- Upstream-aware skills: Hermes/OpenClaw mirrors remain exact capability references while
+  generated changes happen through custom skills or proposals.
 
 ## Tradeoffs
 
-- Not a drop-in Hermes replacement: no Honcho user model or cloud terminal backend.
-- Tool-agent support currently targets OpenAI-compatible API tool calls. Local CLI profiles remain supported as command runners, but they do not expose structured tool calls.
-- Not a drop-in OpenClaw replacement: mirrored upstream skills still depend on the local tools and credentials they describe.
-- No model calls by default: you must choose a local CLI or API model profile and execute explicitly before real model execution.
-- Gateway auth is intentionally small: use the local token gate or bind to localhost for operator workflows.
-- The daemon is portable and local, but it is not an OS service installer; users still choose how to keep it running.
-- Ledger cost is zero until provider-specific pricing is configured; provider token fields are captured when the API returns them.
-- macOS script is included, but this repository was initially verified from Windows; macOS should be tested on a real Mac before release claims beyond CLI portability.
-
-## Reference Points
-
-Birkin was shaped by these upstream ideas:
-
-- Hermes README themes: self-improvement, skills, subagents, scheduled automation, model choice, and remote-friendly operation.
-- Claude birkin runtime ideas: small provider loop, tool registry, Obsidian memory tools, approval queue, unattended review, and Telegram channel concepts.
-- Hermes model docs: terminal model setup plus per-run model override, adapted here as local CLI and API profiles.
-- Hermes auth, proxy, and gateway commands: adapted here as local CLI auth profiles, OpenAI-compatible API execution, and a local HTTP gateway.
-- Hermes skills docs: `SKILL.md` as procedural memory with progressive disclosure.
-- Hermes `skills/`: 90 bundled skill directories mirrored under `skills/upstream/hermes/`.
-- OpenClaw README themes: local-first workspace, multi-agent routing, security defaults, channels, canvas, and skills.
-- OpenClaw `skills/`: 57 upstream skill directories mirrored under `skills/upstream/openclaw/`.
-
-Local reference notes are in [docs/reference-notes.md](docs/reference-notes.md).
+- Birkin is not a drop-in Hermes replacement; it does not include Hermes cloud terminal
+  backends, Honcho user modeling, or subscription proxy behavior.
+- Mirrored upstream skills are intentionally immutable; modifying their behavior requires
+  a proposal or custom fork.
+- Cost accounting captures token fields and budget warnings, but provider-specific price
+  tables are still a future layer.
+- Gateway auth is intentionally small; use localhost binding or the token gate for local
+  operator workflows.
+- Always-on production deployment still needs the roadmap supervisor work.
 
 ## Verification
 
+Run:
+
 ```sh
-python -m unittest discover -s tests
-python -m compileall -q src tests
 python -m pip install -e .
+python -m unittest discover -s tests
+python -m compileall -q src tests tools
 birkin-codex doctor
-birkin-codex setup
 birkin-codex skills validate
 birkin-codex skills config
-birkin-codex memory status
-birkin-codex ledger summary
-birkin-codex telegram status
-birkin-codex approvals list
+birkin-codex skills safety
 birkin-codex morpheus --dry-run
-birkin-codex daemon status
+birkin-codex reliability health
+birkin-codex gateway status
 ```
-
-Current snapshot:
-
-- Unit tests: 23 passed.
-- Upstream skill mirror check: 147 mirrored upstream skills, 0 missing directories.
-- Tool-agent runtime check: OpenAI-compatible fake server called `memory_write_note` and produced a semantic memory note.
-- Memory smoke check: packet chat wrote Obsidian-compatible semantic notes and recall found them.
-- Approval smoke check: queued file write required approval before execution.
-- Morpheus smoke check: dry-run/no-key path completed and wrote a run record.
-- Ledger smoke check: packet chat appended a ledger row with estimated tokens.
-- Dashboard smoke check: dashboard status API reported setup status, skill config rows, approvals, Morpheus, daemon, schedules, and chat/setup/memory/ledger/telegram tabs.
-- Chat smoke check: `POST /api/chat` returned packet-only status with a reply and run record.
-- Gateway smoke check: `GET /health` returned `ok`; approval and Morpheus endpoints were covered by tests.
-- Code review note: [reviews/2026-05-28-runtime-approval-morpheus-review.md](reviews/2026-05-28-runtime-approval-morpheus-review.md).
 
 ## More
 
 - [Architecture](docs/architecture.md)
 - [Dashboard](docs/dashboard.md)
-- [macOS usage](docs/macos.md)
-- [Model selection](docs/model-selection.md)
-- [Auth, API, and Gateway](docs/auth-api-gateway.md)
 - [Memory, Ledger, and Telegram](docs/memory-ledger-telegram.md)
 - [Runtime, Approvals, and Morpheus](docs/runtime-approval-morpheus.md)
+- [Verified Learning and Reliability](docs/verified-learning-reliability.md)
+- [Model selection](docs/model-selection.md)
+- [Auth, API, and Gateway](docs/auth-api-gateway.md)
 - [Setup, Chat, and Skill Config](docs/setup-chat-skills.md)
 - [Hermes skill map](docs/hermes-skill-map.md)
 - [OpenClaw skill map](docs/openclaw-skill-map.md)

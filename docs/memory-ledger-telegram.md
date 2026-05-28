@@ -21,7 +21,8 @@ birkin-codex memory status
 birkin-codex memory set-vault /path/to/vault --allow-external
 birkin-codex memory record --kind feedback --text "USER_CORRECTION: ..."
 birkin-codex memory recall "search phrase"
-birkin-codex memory write-note --title "User Preference" --body "Prefer local CLI first." --type preference --confidence 0.9
+birkin-codex memory write-note --title "User Preference" --body "Prefer local CLI first." --type preference --confidence 0.9 --scope project=birkin_codex --reason "user preference"
+birkin-codex memory search "local CLI" --type preference --scope birkin_codex --min-confidence 0.8 --source manual
 birkin-codex memory get-note "User Preference"
 birkin-codex memory link --from-title "User Preference" --to-title "Model Selection"
 ```
@@ -37,8 +38,22 @@ Chat calls run memory recall before building the prompt and include matching not
 snippets in a `Recalled Memory` section.
 
 Semantic notes include frontmatter fields for `kind`, `type`, `created`, `updated`,
-`confidence`, `sources`, and `tags`. Links are written as Obsidian `[[wikilink]]`
+`confidence`, `version`, `scope`, `sources`, `tags`, `evidence`, `ttlDays`, `expires`,
+`author`, `agent`, `reason`, and `blame`. Links are written as Obsidian `[[wikilink]]`
 relationships.
+
+Supported memory types are User, Project, Environment, Workflow, Ephemeral, Negative,
+Conversation, Run, Error, and Feedback. Negative memory includes revalidation metadata
+so temporary environment failures can be revisited instead of learned forever.
+
+All writes append a history row to:
+
+```text
+memory/history.jsonl
+```
+
+Memory writes also emit verified-learning events with rollback metadata when a previous
+file body exists.
 
 ## Ledger
 

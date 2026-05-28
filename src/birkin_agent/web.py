@@ -8,6 +8,7 @@ from .approvals import approval_rows, approve, reject
 from .agents import run_agent
 from .chat import run_chat
 from .dashboard import dashboard_data
+from .learning import approve_learning, learning_proposal_rows, reject_learning, show_learning_proposal
 from .morpheus import run_morpheus
 from .workspace import Workspace
 
@@ -244,6 +245,8 @@ INDEX_HTML = """<!doctype html>
       <button data-tab="ledger">Ledger</button>
       <button data-tab="telegram">Telegram</button>
       <button data-tab="approvals">Approvals</button>
+      <button data-tab="learning">Learning</button>
+      <button data-tab="reliability">Reliability</button>
       <button data-tab="morpheus">Morpheus</button>
       <button data-tab="skills">Skills</button>
       <button data-tab="agents">Agents</button>
@@ -323,6 +326,8 @@ INDEX_HTML = """<!doctype html>
       <section id="ledger"><div class="panel"><h2>Ledger Summary</h2><pre id="ledger-json"></pre></div><div class="panel"><h2>Ledger Rows</h2><table id="ledger-table"></table></div></section>
       <section id="telegram"><div class="panel"><h2>Telegram</h2><table id="telegram-table"></table></div></section>
       <section id="approvals"><div class="panel"><h2>Pending Approvals</h2><table id="approvals-table"></table></div></section>
+      <section id="learning"><div class="panel"><h2>Verified Learning Proposals</h2><table id="learning-table"></table></div><div class="panel"><h2>Learning Events</h2><table id="learning-events-table"></table></div></section>
+      <section id="reliability"><div class="panel"><h2>Health</h2><table id="health-table"></table></div><div class="panel"><h2>Budget</h2><pre id="budget-json"></pre></div><div class="panel"><h2>Trace Timeline</h2><table id="traces-table"></table></div><div class="panel"><h2>Delivery / Reliability Log</h2><table id="reliability-table"></table></div></section>
       <section id="morpheus"><div class="panel"><div class="panel-head"><h2>Morpheus</h2><button class="button" id="morpheus-dry-run">Dry Run</button></div><pre id="morpheus-json"></pre><pre id="morpheus-result"></pre></div><div class="panel"><h2>Schedules</h2><table id="schedules-table"></table></div><div class="panel"><h2>Daemon</h2><pre id="daemon-json"></pre></div></section>
       <section id="skills"><div class="panel"><h2>Skills</h2><table id="skills-table"></table></div></section>
       <section id="agents"><div class="panel"><h2>Agents</h2><table id="agents-table"></table></div></section>
@@ -412,21 +417,48 @@ INDEX_HTML = """<!doctype html>
       ], { severity: severityChip });
     }
     function renderApprovals(el, rows) {
-      if (!rows.length) { el.innerHTML = `<tr><td class="empty" colspan="7">No pending approvals.</td></tr>`; return; }
-      const head = "<tr><th>Category</th><th>Title</th><th>Origin</th><th>Status</th><th>Created</th><th>Description</th><th>Action</th></tr>";
+      if (!rows.length) { el.innerHTML = `<tr><td class="empty" colspan="10">No pending approvals.</td></tr>`; return; }
+      const head = "<tr><th>Risk</th><th>Category</th><th>Title</th><th>Origin</th><th>Status</th><th>Resources</th><th>Evidence</th><th>Dry Run</th><th>Rollback</th><th>Action</th></tr>";
       const body = rows.map(row => `<tr>
+        <td>${statusChip(row.riskTier)}</td>
         <td>${esc(row.category)}</td>
         <td>${esc(row.title)}</td>
         <td>${esc(row.origin)}</td>
         <td>${statusChip(row.status)}</td>
-        <td>${esc(row.created)}</td>
-        <td>${esc(row.description)}</td>
+        <td>${esc(row.resources)}</td>
+        <td>${esc(row.evidence)}</td>
+        <td>${esc(row.dryRun)}</td>
+        <td>${esc(row.rollback)}</td>
         <td><button class="button" onclick="resolveApproval('${esc(row.id)}','approve')">Approve</button> <button class="button" onclick="resolveApproval('${esc(row.id)}','reject')">Reject</button></td>
+      </tr>`).join("");
+      el.innerHTML = head + body;
+    }
+    function renderLearning(el, rows) {
+      if (!rows.length) { el.innerHTML = `<tr><td class="empty" colspan="9">No pending learning proposals.</td></tr>`; return; }
+      const head = "<tr><th>Risk</th><th>Target</th><th>Action</th><th>Confidence</th><th>Evidence</th><th>Reason</th><th>Created</th><th>ID</th><th>Action</th></tr>";
+      const body = rows.map(row => `<tr>
+        <td>${statusChip(row.riskTier)}</td>
+        <td>${esc(row.targetType)}:${esc(row.target)}</td>
+        <td>${esc(row.action)}</td>
+        <td>${esc(row.confidence)}</td>
+        <td>${esc(row.evidence)}</td>
+        <td>${esc(row.reason)}</td>
+        <td>${esc(row.created)}</td>
+        <td>${esc(row.id)}</td>
+        <td><button class="button" onclick="resolveLearning('${esc(row.id)}','approve')">Approve</button> <button class="button" onclick="resolveLearning('${esc(row.id)}','reject')">Reject</button></td>
       </tr>`).join("");
       el.innerHTML = head + body;
     }
     async function resolveApproval(id, action) {
       await fetch("/api/approvals", {
+        method: "POST",
+        headers: {"content-type": "application/json"},
+        body: JSON.stringify({id, action})
+      });
+      await load();
+    }
+    async function resolveLearning(id, action) {
+      await fetch("/api/learning", {
         method: "POST",
         headers: {"content-type": "application/json"},
         body: JSON.stringify({id, action})
@@ -524,6 +556,39 @@ INDEX_HTML = """<!doctype html>
         {key: "inboundEnabled", label: "Inbound"}
       ]);
       renderApprovals(document.querySelector("#approvals-table"), d.approvals || []);
+      renderLearning(document.querySelector("#learning-table"), d.learningProposals || []);
+      table(document.querySelector("#learning-events-table"), d.learningEvents || [], [
+        {key: "timestamp", label: "Timestamp"},
+        {key: "status", label: "Status"},
+        {key: "action", label: "Action"},
+        {key: "targetType", label: "Type"},
+        {key: "target", label: "Target"},
+        {key: "confidence", label: "Confidence"},
+        {key: "evidenceStrength", label: "Evidence"},
+        {key: "reason", label: "Reason"}
+      ], { status: statusChip });
+      table(document.querySelector("#health-table"), d.health || [], [
+        {key: "name", label: "Name"},
+        {key: "status", label: "Status"},
+        {key: "detail", label: "Detail"}
+      ], { status: statusChip });
+      document.querySelector("#budget-json").textContent = JSON.stringify(d.budget || {}, null, 2);
+      table(document.querySelector("#traces-table"), d.traces || [], [
+        {key: "timestamp", label: "Timestamp"},
+        {key: "traceId", label: "Trace"},
+        {key: "stage", label: "Stage"},
+        {key: "status", label: "Status"},
+        {key: "resource", label: "Resource"},
+        {key: "message", label: "Message"}
+      ], { status: statusChip });
+      table(document.querySelector("#reliability-table"), d.reliability || [], [
+        {key: "timestamp", label: "Timestamp"},
+        {key: "traceId", label: "Trace"},
+        {key: "stage", label: "Stage"},
+        {key: "status", label: "Status"},
+        {key: "resource", label: "Resource"},
+        {key: "message", label: "Message"}
+      ], { status: statusChip });
       document.querySelector("#morpheus-json").textContent = JSON.stringify(d.morpheus || {}, null, 2);
       document.querySelector("#daemon-json").textContent = JSON.stringify(d.daemon || {}, null, 2);
       table(document.querySelector("#schedules-table"), d.schedules || [], [
@@ -681,6 +746,9 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/status":
             self.send_json(dashboard_data(self.workspace))
             return
+        if parsed.path == "/api/learning":
+            self.send_json({"proposals": learning_proposal_rows(self.workspace)})
+            return
         self.send_json({"error": "not found"}, 404)
 
     def do_POST(self) -> None:
@@ -759,6 +827,26 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"error": str(exc)}, 400)
                 return
             self.send_json({"approval": result, "approvals": approval_rows(self.workspace)})
+            return
+        if parsed.path == "/api/learning":
+            if not self.require_local_request():
+                return
+            action = str(payload.get("action") or "").strip().lower()
+            proposal_id = str(payload.get("id") or "").strip()
+            if action not in {"approve", "reject", "show"} or not proposal_id:
+                self.send_json({"error": "action approve/reject/show and id are required"}, 400)
+                return
+            try:
+                if action == "approve":
+                    result = approve_learning(self.workspace, proposal_id)
+                elif action == "reject":
+                    result = reject_learning(self.workspace, proposal_id)
+                else:
+                    result = show_learning_proposal(self.workspace, proposal_id)
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, 400)
+                return
+            self.send_json({"learning": result, "proposals": learning_proposal_rows(self.workspace)})
             return
         if parsed.path in ["/api/morpheus", "/api/nightly"]:
             if not self.require_local_request():

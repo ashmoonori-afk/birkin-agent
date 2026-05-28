@@ -259,12 +259,30 @@ def build_registry(workspace: Workspace, packet: dict[str, Any]) -> ToolRegistry
             {
                 "title": {"type": "string"},
                 "body": {"type": "string"},
-                "kind": {"type": "string", "enum": ["feedback", "errors", "conversations", "runs"]},
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "feedback",
+                        "errors",
+                        "conversations",
+                        "runs",
+                        "user",
+                        "project",
+                        "environment",
+                        "workflow",
+                        "ephemeral",
+                        "negative",
+                    ],
+                },
                 "type": {"type": "string"},
                 "tags": {"type": "array", "items": {"type": "string"}},
                 "sources": {"type": "array", "items": {"type": "string"}},
+                "evidence": {"type": "array", "items": {"type": "object"}},
                 "links": {"type": "array", "items": {"type": "string"}},
                 "confidence": {"type": "number"},
+                "ttlDays": {"type": "integer"},
+                "scope": {"type": "object"},
+                "reason": {"type": "string"},
                 "append": {"type": "boolean"},
             },
             required=["title", "body"],
@@ -404,6 +422,11 @@ def memory_write_tool(workspace: Workspace, args: dict[str, Any]) -> ToolResult:
         links=[str(item) for item in args.get("links") or []],
         confidence=float(args.get("confidence") or 0.7),
         sources=[str(item) for item in args.get("sources") or []],
+        evidence=args.get("evidence") if isinstance(args.get("evidence"), list) else None,
+        ttl_days=int(args.get("ttlDays") or 0) or None,
+        scope=args.get("scope") if isinstance(args.get("scope"), dict) else {},
+        agent="tool-agent",
+        reason=str(args.get("reason") or "tool-agent memory write"),
         append=bool(args.get("append") or False),
     )
     return ToolResult(f"wrote {note.path.relative_to(workspace.root)}")
@@ -484,6 +507,7 @@ def queue_approval_tool(
         description=description,
         payload=payload,
         origin="tool-agent",
+        evidence=[{"type": "run", "ref": str(payload.get("record") or "tool-agent")}],
     )
     if status.get("status") == "pending":
         return ToolResult(f"queued approval {status.get('id')}")

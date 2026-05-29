@@ -12,17 +12,11 @@ dependencies = []
 birkin-codex = "birkin_agent.cli:main"
 birkin = "birkin_agent.cli:main"
 
+[tool.setuptools]
+include-package-data = true
+
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.setuptools.package-data]
-birkin_agent = [
-  "bundled_skills/*/*/SKILL.md",
-  "bundled_skills/*/*/*/SKILL.md",
-  "bundled_skills/*/*/*/*/SKILL.md",
-  "bundled_skills/*/*/*/*/*/SKILL.md",
-  "bundled_skills/upstream/manifest.json",
-]
 
 [build-system]
 requires = ["setuptools>=68"]

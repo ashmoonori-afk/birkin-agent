@@ -141,6 +141,8 @@ preserved.
   tokens to Birkin config.
 - The gateway binds to localhost by default. If `BIRKIN_GATEWAY_TOKEN` is set, or
   `gateway.requireToken` is true, it requires a bearer token or `x-birkin-token`.
+- Gateway non-localhost binds fail closed unless token auth is active. Web UI POST
+  execution APIs are local-request only.
 - Chat uses the same `--execute` safety boundary as other agent runs.
 - Morpheus dry-run works without API keys and does not execute consequential actions.
 - `skills config` verifies root, enabled/disabled, gated, precedence, and reflection

@@ -161,6 +161,10 @@ Kept different:
   non-local Web UI/gateway bind exposure, tool-agent turn-limit runs recorded as `ok`,
   pip wheels shipping only bundled `SKILL.md` files instead of support assets, and
   interactive `/model` accepting missing profiles silently.
+- Review findings remediation: Web UI POST execution endpoints are local-client only,
+  gateway non-localhost binds require token auth, tool-agent turn-limit exits are recorded
+  as failed, pip wheels include the full bundled skill support tree without pycache, and
+  interactive `/model` rejects unknown profiles.
 - `birkin-codex skills validate`: `ok`.
 - `birkin-codex skills config`: passed with 168 discovered skills, 15 enabled, 90 Hermes
   reflections, 57 OpenClaw reflections, and 147 mirrored upstream skills.
@@ -207,6 +211,8 @@ Kept different:
 - Skills display review note: `reviews/2026-05-28-skills-display-review.md`.
 - Full structure/agent review note:
   `reviews/2026-05-28-full-structure-agent-review.md`.
+- Review finding fixes review note:
+  `reviews/2026-05-29-review-finding-fixes-review.md`.
 
 ## Git Target
 

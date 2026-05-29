@@ -21,6 +21,7 @@ from .reliability import budget_status, health_checks, reliability_rows, replay_
 from .scheduler import daemon_status, schedule_rows
 from .skills import skill_config_rows
 from .telegram import run_telegram_inbound, telegram_status
+from .util import is_local_host
 from .workspace import Workspace
 
 
@@ -87,15 +88,19 @@ def gateway_info(workspace: Workspace, host: str | None = None, port: int | None
     }
 
 
-def validate_gateway(workspace: Workspace) -> tuple[list[str], list[str]]:
+def validate_gateway(
+    workspace: Workspace,
+    host: str | None = None,
+    port: int | None = None,
+) -> tuple[list[str], list[str]]:
     errors: list[str] = []
     warnings: list[str] = []
     config = gateway_config(workspace)
-    host = str(config.get("host") or "127.0.0.1")
-    port = config.get("port") or 8770
+    effective_host = str(host if host is not None else config.get("host") or "127.0.0.1")
+    effective_port = port if port is not None else config.get("port") or 8770
     token_env, token, auth_required = gateway_auth_state(workspace)
     try:
-        port_int = int(port)
+        port_int = int(effective_port)
     except (TypeError, ValueError):
         errors.append("gateway.port must be an integer")
         port_int = 0
@@ -103,8 +108,8 @@ def validate_gateway(workspace: Workspace) -> tuple[list[str], list[str]]:
         errors.append("gateway.port must be between 1 and 65535")
     if bool(config.get("requireToken") or False) and not token:
         errors.append(f"gateway requires token but environment variable is not set: {token_env}")
-    if host not in {"127.0.0.1", "localhost", "::1"} and not auth_required:
-        warnings.append("gateway is configured for a non-localhost host without token auth")
+    if not is_local_host(effective_host) and not auth_required:
+        errors.append("gateway non-localhost host requires token auth")
     return errors, warnings
 
 
@@ -342,7 +347,7 @@ class GatewayHandler(BaseHTTPRequestHandler):
 
 
 def serve_gateway(workspace: Workspace, host: str | None = None, port: int | None = None) -> None:
-    errors, warnings = validate_gateway(workspace)
+    errors, warnings = validate_gateway(workspace, host=host, port=port)
     auth_errors, auth_warnings = validate_auth(workspace)
     api_errors, api_warnings = validate_api(workspace)
     errors.extend(auth_errors)

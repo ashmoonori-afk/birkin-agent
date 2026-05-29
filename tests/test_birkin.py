@@ -8,8 +8,10 @@ import shutil
 import sys
 import tempfile
 import threading
+import tomllib
 import unittest
 from unittest.mock import patch
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from birkin_agent.agents import build_packet, run_agent, validate_agents
@@ -20,7 +22,7 @@ from birkin_agent.chat import run_chat
 from birkin_agent.cli import main as cli_main, startup_banner
 from birkin_agent.dashboard import dashboard_data
 from birkin_agent.experience import current_experience, set_experience_mode
-from birkin_agent.gateway import GatewayHandler
+from birkin_agent.gateway import GatewayHandler, validate_gateway
 from birkin_agent.improve import append_lesson, apply_improvement, propose_improvement
 from birkin_agent.learning import (
     add_learning_proposal,
@@ -97,6 +99,15 @@ class WorkspaceTest(unittest.TestCase):
         self.assertIn("birkin-codex", (workspace.root / "scripts" / "install.sh").read_text(encoding="utf-8"))
         self.assertTrue((workspace.root / "scripts" / "setup").exists())
         self.assertTrue((workspace.root / "scripts" / "setup.ps1").exists())
+
+    def test_pyproject_packages_full_bundled_skill_tree(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        pyproject = tomllib.loads((repo / "pyproject.toml").read_text(encoding="utf-8"))
+        self.assertTrue(pyproject["tool"]["setuptools"]["include-package-data"])
+        manifest = (repo / "MANIFEST.in").read_text(encoding="utf-8")
+        self.assertIn("recursive-include src/birkin_agent/bundled_skills *", manifest)
+        self.assertIn("global-exclude __pycache__ *.py[cod]", manifest)
+        self.assertTrue((repo / "src" / "birkin_agent" / "bundled_skills" / "upstream" / "openclaw" / "skill-creator" / "scripts" / "quick_validate.py").exists())
 
     def test_agent_packet_uses_final_skill_allowlist(self) -> None:
         workspace = self.make_workspace()
@@ -348,6 +359,77 @@ class WorkspaceTest(unittest.TestCase):
         self.assertEqual(payload["status"], "ok")
         self.assertEqual(payload["runner"], "tool-agent")
 
+    def test_tool_agent_turn_limit_is_recorded_as_failed(self) -> None:
+        workspace = self.make_workspace()
+
+        class LoopToolApiHandler(BaseHTTPRequestHandler):
+            def log_message(self, format: str, *args: object) -> None:
+                return
+
+            def do_POST(self) -> None:
+                body = {
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": None,
+                                "tool_calls": [
+                                    {
+                                        "id": "call_1",
+                                        "type": "function",
+                                        "function": {"name": "list_files", "arguments": "{}"},
+                                    }
+                                ],
+                            }
+                        }
+                    ],
+                    "usage": {"total_tokens": 2},
+                }
+                encoded = json.dumps(body).encode("utf-8")
+                self.send_response(200)
+                self.send_header("content-type", "application/json")
+                self.send_header("content-length", str(len(encoded)))
+                self.end_headers()
+                self.wfile.write(encoded)
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), LoopToolApiHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        host, port = server.server_address
+
+        workspace.config["api"]["profiles"]["loop-tool-api"] = {
+            "type": "openai-compatible",
+            "baseUrl": f"http://{host}:{port}/v1",
+            "apiKeyEnv": "",
+            "chatPath": "/chat/completions",
+            "timeoutSeconds": 30,
+            "description": "Looping tool API profile.",
+        }
+        workspace.config["models"]["profiles"]["loop-tool-agent"] = {
+            "provider": "unit-api",
+            "model": "unit-model",
+            "runner": "tool-agent",
+            "apiProfile": "loop-tool-api",
+            "command": [],
+            "timeoutSeconds": 30,
+            "description": "Looping tool agent model.",
+        }
+        workspace.config["runners"]["tool-agent"]["maxTurns"] = 1
+        workspace.save_config()
+        record, result = run_agent(
+            workspace,
+            "planner",
+            "Loop until the turn limit is hit.",
+            model_name="loop-tool-agent",
+            execute=True,
+        )
+        self.assertEqual(result["returncode"], 2)
+        self.assertEqual(result["stderr"], "tool turn limit reached")
+        payload = json.loads(record.read_text(encoding="utf-8"))
+        self.assertEqual(payload["status"], "failed")
+
     def test_hermes_reflections_keep_source_metadata(self) -> None:
         workspace = self.make_workspace()
         records = {skill.name: skill for skill in discover_skills(workspace)}
@@ -478,6 +560,18 @@ class WorkspaceTest(unittest.TestCase):
         self.assertNotIn("0 discovered skills", output)
         self.assertTrue(ensure_bundled_skills(workspace) == [])
         self.assertTrue(discover_skills(workspace))
+
+    def test_interactive_model_command_rejects_missing_profile(self) -> None:
+        workspace = self.make_workspace()
+        with (
+            patch("birkin_agent.cli.ws", return_value=workspace),
+            patch("builtins.input", side_effect=["/model does-not-exist", "/model packet", "/exit"]),
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+        ):
+            self.assertEqual(cli_main([]), 0)
+        output = stdout.getvalue()
+        self.assertIn("model profile not found: does-not-exist", output)
+        self.assertIn("model=packet runner=dry-run", output)
 
     def test_update_dry_run_cli_reports_install_command(self) -> None:
         with patch("sys.stdout", new_callable=io.StringIO) as stdout:
@@ -933,6 +1027,42 @@ class WorkspaceTest(unittest.TestCase):
             chat = json.loads(response.read().decode("utf-8"))
         self.assertEqual(chat["status"], "packet-only")
         self.assertIn("reply", chat)
+
+    def test_web_run_api_requires_local_request(self) -> None:
+        workspace = self.make_workspace()
+
+        class DenyRemoteHandler(Handler):
+            def require_local_request(self) -> bool:
+                self.send_json({"error": "local request required"}, 403)
+                return False
+
+        DenyRemoteHandler.workspace = workspace
+        server = ThreadingHTTPServer(("127.0.0.1", 0), DenyRemoteHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        host, port = server.server_address
+
+        body = json.dumps({"agent": "planner", "model": "packet", "task": "Plan a release"}).encode("utf-8")
+        request = Request(
+            f"http://{host}:{port}/api/run",
+            data=body,
+            headers={"content-type": "application/json"},
+            method="POST",
+        )
+        with self.assertRaises(HTTPError) as raised:
+            urlopen(request, timeout=5)
+        self.assertEqual(raised.exception.code, 403)
+
+    def test_gateway_nonlocal_override_requires_token_auth(self) -> None:
+        workspace = self.make_workspace()
+        errors, warnings = validate_gateway(workspace, host="0.0.0.0")
+        self.assertIn("gateway non-localhost host requires token auth", errors)
+        self.assertEqual(warnings, [])
+        with patch.dict("os.environ", {"BIRKIN_GATEWAY_TOKEN": "unit-secret"}):
+            errors, _warnings = validate_gateway(workspace, host="0.0.0.0")
+        self.assertNotIn("gateway non-localhost host requires token auth", errors)
 
     def test_gateway_status_and_run_api(self) -> None:
         workspace = self.make_workspace()

@@ -1,1 +1,3 @@
 src/birkin_agent/bundled_skills/upstream/** whitespace=-blank-at-eol,-blank-at-eof,-trailing-space
+src/birkin_agent/bundled_skills/upstream/**/*.sh text eol=lf
+src/birkin_agent/bundled_skills/upstream/**/bin/* text eol=lf

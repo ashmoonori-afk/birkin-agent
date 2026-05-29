@@ -35,6 +35,13 @@ def is_relative_to(path: Path, root: Path) -> bool:
         return False
 
 
+def is_local_host(host: str) -> bool:
+    value = str(host or "").strip().lower()
+    if value.startswith("[") and value.endswith("]"):
+        value = value[1:-1]
+    return value in {"127.0.0.1", "::1", "localhost", "::ffff:127.0.0.1"}
+
+
 def safe_path(root: Path, *parts: str) -> Path:
     candidate = (root / Path(*parts)).resolve()
     if not is_relative_to(candidate, root.resolve()):

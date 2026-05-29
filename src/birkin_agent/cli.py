@@ -1739,8 +1739,15 @@ def cmd_chat_interactive(args: argparse.Namespace) -> int:
             print(f"mode={payload['mode']} skills={payload['skills']}")
             continue
         if lowered.startswith("/model "):
-            model_name = message.split(maxsplit=1)[1].strip()
-            print(f"model={model_name}")
+            value = message.split(maxsplit=1)[1].strip()
+            profiles = model_profile_map(workspace)
+            if value not in profiles:
+                print(f"model profile not found: {value}")
+                print_table(model_rows(workspace), ["id", "default", "provider", "model", "runner", "description"])
+                continue
+            model_name = value
+            profile = profiles[value]
+            print(f"model={model_name} runner={profile.runner}")
             continue
         if lowered.startswith("/execute "):
             value = message.split(maxsplit=1)[1].strip().lower()

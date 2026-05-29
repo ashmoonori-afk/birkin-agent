@@ -140,7 +140,7 @@ def run_tool_agent(
 
     final_text = final_text or "Stopped after the configured tool-call turn limit."
     return {
-        "returncode": 0,
+        "returncode": 2,
         "stdout": final_text,
         "stderr": "tool turn limit reached",
         "apiProfile": api_profile,

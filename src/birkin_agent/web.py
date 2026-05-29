@@ -10,6 +10,7 @@ from .chat import run_chat
 from .dashboard import dashboard_data
 from .learning import approve_learning, learning_proposal_rows, reject_learning, rollback_learning, show_learning_proposal
 from .morpheus import run_morpheus
+from .util import is_local_host
 from .workspace import Workspace
 
 
@@ -770,7 +771,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def require_local_request(self) -> bool:
         host = self.client_address[0] if self.client_address else ""
-        if host in {"127.0.0.1", "::1", "localhost"}:
+        if is_local_host(host):
             return True
         self.send_json({"error": "local request required"}, 403)
         return False
@@ -794,6 +795,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json({"error": "not found"}, 404)
 
     def do_POST(self) -> None:
+        if not self.require_local_request():
+            return
         parsed = urlparse(self.path)
         length = int(self.headers.get("content-length", "0"))
         raw = self.rfile.read(length).decode("utf-8") if length else "{}"
